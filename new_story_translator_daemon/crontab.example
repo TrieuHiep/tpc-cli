@@ -1,0 +1,8 @@
+# ==============================================================================
+# MẪU CẤU HÌNH CRONTAB TỰ ĐỘNG DỊCH MỚI TRUYỆN (10 BỘ TRUYỆN x 100 CHƯƠNG ĐẦU)
+# ==============================================================================
+# Chạy vào lúc 00:30 sáng hàng ngày (chạy song song 2 worker):
+0 0 * * * cd /opt/story-translator && /opt/story-translator/venv/bin/python -m new_story_translator_daemon.main --workers 2 >> /opt/story-translator/logs/new_stories/cron_new.log 2>&1
+
+# (Tùy chọn) Chạy test mô phỏng dry-run:
+# python -m new_story_translator_daemon.main --dry-run
