@@ -34,7 +34,7 @@ SOURCE_PRIORITY = ["truyendichwiki", "novel543"]
 TARGET_CHAPTERS_PER_STORY = 100
 
 # Kích thước hàng đợi mẻ dịch mới (10 bộ truyện)
-TARGET_STORY_QUEUE_SIZE = 10
+TARGET_STORY_QUEUE_SIZE = 20
 
 # Số worker chạy song song cùng lúc (mặc định 2 để an toàn Rate Limit)
 MAX_PARALLEL_WORKERS = 2
