@@ -1,0 +1,193 @@
+nohup: ignoring input
+[01:27:17] INFO     🚜 Khởi chạy Batch Runner [PID: 43615] | Kho: [bold         
+                    gold1]TRUYENDICHWIKI[/bold gold1] | Mode: [bold             
+                    cyan]NEW[/bold cyan] | Giới hạn: 20 truyện | Multithread: 10
+                    Workers song song                                           
+           INFO                                                                 
+                    📋 [Batch Scan Result] Tìm thấy [bold gold1]63[/bold gold1] 
+                    bộ truyện đủ điều kiện. Sẽ thực hiện [bold cyan]20[/bold    
+                    cyan] bộ truyện:                                            
+           INFO        1. [cyan]WpURMO8h7GyKTpON[/cyan] (Kho: truyendichwiki)   
+           INFO        2. [cyan]Wsrz7E2He7CXQTGO6[/cyan] (Kho: truyendichwiki)  
+           INFO        3. [cyan]WxBZVe8h7Fcy_Psz[/cyan] (Kho: truyendichwiki)   
+           INFO        4. [cyan]WxZXYO8h7EJn4_Dd[/cyan] (Kho: truyendichwiki)   
+           INFO        5. [cyan]Wxctg7E8h7BPE5xLq[/cyan] (Kho: truyendichwiki)  
+           INFO        6. [cyan]WzOgqe8h7DDM7Eaik[/cyan] (Kho: truyendichwiki)  
+           INFO        7. [cyan]X0HkIUbIjg7UjfYq[/cyan] (Kho: truyendichwiki)   
+           INFO        8. [cyan]X0_VL1S4CBe7E_7Exb[/cyan] (Kho: truyendichwiki) 
+           INFO        9. [cyan]X1CpwFS4CFezNoU3[/cyan] (Kho: truyendichwiki)   
+           INFO        10. [cyan]X3kfmFS4CBBIzXqN[/cyan] (Kho: truyendichwiki)  
+           INFO        11. [cyan]X5VwL1S4CAKNlkgN[/cyan] (Kho: truyendichwiki)  
+           INFO        12. [cyan]X73WDlS4CG2E9Zdz[/cyan] (Kho: truyendichwiki)  
+           INFO        13. [cyan]X7EB0C1S4CAUrL0pX[/cyan] (Kho: truyendichwiki) 
+           INFO        14. [cyan]X7Yb6VS4CDNFzfcB[/cyan] (Kho: truyendichwiki)  
+           INFO        15. [cyan]X8nko1S4CCV0KZpS[/cyan] (Kho: truyendichwiki)  
+           INFO        16. [cyan]X8zZU1S4CES1E9A6[/cyan] (Kho: truyendichwiki)  
+           INFO        17. [cyan]XBb6DVS4CFV7Eo_uG[/cyan] (Kho: truyendichwiki) 
+           INFO        18. [cyan]XFBSVlS4CC3CoBRt[/cyan] (Kho: truyendichwiki)  
+           INFO        19. [cyan]XOyN21S4CEHoeGAm[/cyan] (Kho: truyendichwiki)  
+           INFO        20. [cyan]XP5tbVS4CD9flNZX[/cyan] (Kho: truyendichwiki)  
+           INFO     --------------------------------------------------          
+                                                                                
+           INFO     🚀 [Worker_1] Bắt đầu xử lý [NEW]: [bold                    
+                    cyan]Wsrz7E2He7CXQTGO6[/bold cyan] (Log chi tiết:           
+                    [dim]/data/hiept/story-data/story-data/storage/truyendichwik
+                    i/Wsrz7E2He7CXQTGO6/translation.log[/dim])                  
+           INFO     🚀 [Worker_5] Bắt đầu xử lý [NEW]: [bold                    
+                    cyan]WzOgqe8h7DDM7Eaik[/bold cyan] (Log chi tiết:           
+                    [dim]/data/hiept/story-data/story-data/storage/truyendichwik
+                    i/WzOgqe8h7DDM7Eaik/translation.log[/dim])                  
+           INFO     🚀 [Worker_3] Bắt đầu xử lý [NEW]: [bold                    
+                    cyan]WxZXYO8h7EJn4_Dd[/bold cyan] (Log chi tiết:            
+                    [dim]/data/hiept/story-data/story-data/storage/truyendichwik
+                    i/WxZXYO8h7EJn4_Dd/translation.log[/dim])                   
+           INFO     🚀 [Worker_2] Bắt đầu xử lý [NEW]: [bold                    
+                    cyan]WxBZVe8h7Fcy_Psz[/bold cyan] (Log chi tiết:            
+                    [dim]/data/hiept/story-data/story-data/storage/truyendichwik
+                    i/WxBZVe8h7Fcy_Psz/translation.log[/dim])                   
+           INFO     🚀 [Worker_4] Bắt đầu xử lý [NEW]: [bold                    
+                    cyan]Wxctg7E8h7BPE5xLq[/bold cyan] (Log chi tiết:           
+                    [dim]/data/hiept/story-data/story-data/storage/truyendichwik
+                    i/Wxctg7E8h7BPE5xLq/translation.log[/dim])                  
+           INFO     🚀 [Worker_0] Bắt đầu xử lý [NEW]: [bold                    
+                    cyan]WpURMO8h7GyKTpON[/bold cyan] (Log chi tiết:            
+                    [dim]/data/hiept/story-data/story-data/storage/truyendichwik
+                    i/WpURMO8h7GyKTpON/translation.log[/dim])                   
+           INFO     🚀 [Worker_7] Bắt đầu xử lý [NEW]: [bold                    
+                    cyan]X0_VL1S4CBe7E_7Exb[/bold cyan] (Log chi tiết:          
+                    [dim]/data/hiept/story-data/story-data/storage/truyendichwik
+                    i/X0_VL1S4CBe7E_7Exb/translation.log[/dim])                 
+           INFO     🚀 [Worker_6] Bắt đầu xử lý [NEW]: [bold                    
+                    cyan]X0HkIUbIjg7UjfYq[/bold cyan] (Log chi tiết:            
+                    [dim]/data/hiept/story-data/story-data/storage/truyendichwik
+                    i/X0HkIUbIjg7UjfYq/translation.log[/dim])                   
+           INFO     🚀 [Worker_9] Bắt đầu xử lý [NEW]: [bold                    
+                    cyan]X3kfmFS4CBBIzXqN[/bold cyan] (Log chi tiết:            
+                    [dim]/data/hiept/story-data/story-data/storage/truyendichwik
+                    i/X3kfmFS4CBBIzXqN/translation.log[/dim])                   
+           INFO     🚀 [Worker_8] Bắt đầu xử lý [NEW]: [bold                    
+                    cyan]X1CpwFS4CFezNoU3[/bold cyan] (Log chi tiết:            
+                    [dim]/data/hiept/story-data/story-data/storage/truyendichwik
+                    i/X1CpwFS4CFezNoU3/translation.log[/dim])                   
+[02:18:23] INFO     🎉 [Worker_9] Hoàn thành xử lý truyện: [bold                
+                    green]X3kfmFS4CBBIzXqN[/bold green]                         
+           INFO     📊 Tiến độ: Đã hoàn thành [bold green]1[/bold green]/20 bộ  
+                    truyện.                                                     
+           INFO     🚀 [Worker_9] Bắt đầu xử lý [NEW]: [bold                    
+                    cyan]X5VwL1S4CAKNlkgN[/bold cyan] (Log chi tiết:            
+                    [dim]/data/hiept/story-data/story-data/storage/truyendichwik
+                    i/X5VwL1S4CAKNlkgN/translation.log[/dim])                   
+[03:53:36] INFO     🎉 [Worker_6] Hoàn thành xử lý truyện: [bold                
+                    green]X0HkIUbIjg7UjfYq[/bold green]                         
+           INFO     📊 Tiến độ: Đã hoàn thành [bold green]2[/bold green]/20 bộ  
+                    truyện.                                                     
+           INFO     🚀 [Worker_6] Bắt đầu xử lý [NEW]: [bold                    
+                    cyan]X73WDlS4CG2E9Zdz[/bold cyan] (Log chi tiết:            
+                    [dim]/data/hiept/story-data/story-data/storage/truyendichwik
+                    i/X73WDlS4CG2E9Zdz/translation.log[/dim])                   
+[04:08:34] INFO     🎉 [Worker_4] Hoàn thành xử lý truyện: [bold                
+                    green]Wxctg7E8h7BPE5xLq[/bold green]                        
+           INFO     📊 Tiến độ: Đã hoàn thành [bold green]3[/bold green]/20 bộ  
+                    truyện.                                                     
+           INFO     🚀 [Worker_4] Bắt đầu xử lý [NEW]: [bold                    
+                    cyan]X7EB0C1S4CAUrL0pX[/bold cyan] (Log chi tiết:           
+                    [dim]/data/hiept/story-data/story-data/storage/truyendichwik
+                    i/X7EB0C1S4CAUrL0pX/translation.log[/dim])                  
+[04:13:37] INFO     🎉 [Worker_3] Hoàn thành xử lý truyện: [bold                
+                    green]WxZXYO8h7EJn4_Dd[/bold green]                         
+           INFO     📊 Tiến độ: Đã hoàn thành [bold green]4[/bold green]/20 bộ  
+                    truyện.                                                     
+           INFO     🚀 [Worker_3] Bắt đầu xử lý [NEW]: [bold                    
+                    cyan]X7Yb6VS4CDNFzfcB[/bold cyan] (Log chi tiết:            
+                    [dim]/data/hiept/story-data/story-data/storage/truyendichwik
+                    i/X7Yb6VS4CDNFzfcB/translation.log[/dim])                   
+[04:16:16] INFO     🎉 [Worker_8] Hoàn thành xử lý truyện: [bold                
+                    green]X1CpwFS4CFezNoU3[/bold green]                         
+           INFO     📊 Tiến độ: Đã hoàn thành [bold green]5[/bold green]/20 bộ  
+                    truyện.                                                     
+           INFO     🚀 [Worker_8] Bắt đầu xử lý [NEW]: [bold                    
+                    cyan]X8nko1S4CCV0KZpS[/bold cyan] (Log chi tiết:            
+                    [dim]/data/hiept/story-data/story-data/storage/truyendichwik
+                    i/X8nko1S4CCV0KZpS/translation.log[/dim])                   
+[04:37:49] INFO     🎉 [Worker_7] Hoàn thành xử lý truyện: [bold                
+                    green]X0_VL1S4CBe7E_7Exb[/bold green]                       
+           INFO     📊 Tiến độ: Đã hoàn thành [bold green]6[/bold green]/20 bộ  
+                    truyện.                                                     
+           INFO     🚀 [Worker_7] Bắt đầu xử lý [NEW]: [bold                    
+                    cyan]X8zZU1S4CES1E9A6[/bold cyan] (Log chi tiết:            
+                    [dim]/data/hiept/story-data/story-data/storage/truyendichwik
+                    i/X8zZU1S4CES1E9A6/translation.log[/dim])                   
+[04:45:16] INFO     🎉 [Worker_2] Hoàn thành xử lý truyện: [bold                
+                    green]WxBZVe8h7Fcy_Psz[/bold green]                         
+           INFO     📊 Tiến độ: Đã hoàn thành [bold green]7[/bold green]/20 bộ  
+                    truyện.                                                     
+           INFO     🚀 [Worker_2] Bắt đầu xử lý [NEW]: [bold                    
+                    cyan]XBb6DVS4CFV7Eo_uG[/bold cyan] (Log chi tiết:           
+                    [dim]/data/hiept/story-data/story-data/storage/truyendichwik
+                    i/XBb6DVS4CFV7Eo_uG/translation.log[/dim])                  
+[05:43:37] INFO     🎉 [Worker_3] Hoàn thành xử lý truyện: [bold                
+                    green]X7Yb6VS4CDNFzfcB[/bold green]                         
+           INFO     📊 Tiến độ: Đã hoàn thành [bold green]8[/bold green]/20 bộ  
+                    truyện.                                                     
+           INFO     🚀 [Worker_3] Bắt đầu xử lý [NEW]: [bold                    
+                    cyan]XFBSVlS4CC3CoBRt[/bold cyan] (Log chi tiết:            
+                    [dim]/data/hiept/story-data/story-data/storage/truyendichwik
+                    i/XFBSVlS4CC3CoBRt/translation.log[/dim])                   
+[05:56:35] INFO     🎉 [Worker_6] Hoàn thành xử lý truyện: [bold                
+                    green]X73WDlS4CG2E9Zdz[/bold green]                         
+           INFO     📊 Tiến độ: Đã hoàn thành [bold green]9[/bold green]/20 bộ  
+                    truyện.                                                     
+           INFO     🚀 [Worker_6] Bắt đầu xử lý [NEW]: [bold                    
+                    cyan]XOyN21S4CEHoeGAm[/bold cyan] (Log chi tiết:            
+                    [dim]/data/hiept/story-data/story-data/storage/truyendichwik
+                    i/XOyN21S4CEHoeGAm/translation.log[/dim])                   
+[06:01:44] INFO     🎉 [Worker_0] Hoàn thành xử lý truyện: [bold                
+                    green]WpURMO8h7GyKTpON[/bold green]                         
+           INFO     📊 Tiến độ: Đã hoàn thành [bold green]10[/bold green]/20 bộ 
+                    truyện.                                                     
+           INFO     🚀 [Worker_0] Bắt đầu xử lý [NEW]: [bold                    
+                    cyan]XP5tbVS4CD9flNZX[/bold cyan] (Log chi tiết:            
+                    [dim]/data/hiept/story-data/story-data/storage/truyendichwik
+                    i/XP5tbVS4CD9flNZX/translation.log[/dim])                   
+[06:25:57] INFO     🎉 [Worker_8] Hoàn thành xử lý truyện: [bold                
+                    green]X8nko1S4CCV0KZpS[/bold green]                         
+           INFO     📊 Tiến độ: Đã hoàn thành [bold green]11[/bold green]/20 bộ 
+                    truyện.                                                     
+[06:39:49] INFO     🎉 [Worker_5] Hoàn thành xử lý truyện: [bold                
+                    green]WzOgqe8h7DDM7Eaik[/bold green]                        
+           INFO     📊 Tiến độ: Đã hoàn thành [bold green]12[/bold green]/20 bộ 
+                    truyện.                                                     
+[06:53:03] INFO     🎉 [Worker_2] Hoàn thành xử lý truyện: [bold                
+                    green]XBb6DVS4CFV7Eo_uG[/bold green]                        
+           INFO     📊 Tiến độ: Đã hoàn thành [bold green]13[/bold green]/20 bộ 
+                    truyện.                                                     
+[06:55:43] INFO     🎉 [Worker_9] Hoàn thành xử lý truyện: [bold                
+                    green]X5VwL1S4CAKNlkgN[/bold green]                         
+           INFO     📊 Tiến độ: Đã hoàn thành [bold green]14[/bold green]/20 bộ 
+                    truyện.                                                     
+[07:02:06] INFO     🎉 [Worker_1] Hoàn thành xử lý truyện: [bold                
+                    green]Wsrz7E2He7CXQTGO6[/bold green]                        
+           INFO     📊 Tiến độ: Đã hoàn thành [bold green]15[/bold green]/20 bộ 
+                    truyện.                                                     
+[07:16:43] INFO     🎉 [Worker_7] Hoàn thành xử lý truyện: [bold                
+                    green]X8zZU1S4CES1E9A6[/bold green]                         
+           INFO     📊 Tiến độ: Đã hoàn thành [bold green]16[/bold green]/20 bộ 
+                    truyện.                                                     
+[07:59:30] INFO     🎉 [Worker_4] Hoàn thành xử lý truyện: [bold                
+                    green]X7EB0C1S4CAUrL0pX[/bold green]                        
+           INFO     📊 Tiến độ: Đã hoàn thành [bold green]17[/bold green]/20 bộ 
+                    truyện.                                                     
+[08:14:36] INFO     🎉 [Worker_3] Hoàn thành xử lý truyện: [bold                
+                    green]XFBSVlS4CC3CoBRt[/bold green]                         
+           INFO     📊 Tiến độ: Đã hoàn thành [bold green]18[/bold green]/20 bộ 
+                    truyện.                                                     
+[08:22:44] INFO     🎉 [Worker_0] Hoàn thành xử lý truyện: [bold                
+                    green]XP5tbVS4CD9flNZX[/bold green]                         
+           INFO     📊 Tiến độ: Đã hoàn thành [bold green]19[/bold green]/20 bộ 
+                    truyện.                                                     
+[10:13:02] INFO     🎉 [Worker_6] Hoàn thành xử lý truyện: [bold                
+                    green]XOyN21S4CEHoeGAm[/bold green]                         
+           INFO     📊 Tiến độ: Đã hoàn thành [bold green]20[/bold green]/20 bộ 
+                    truyện.                                                     
+           INFO     🛑 Đã hoàn thành đủ giới hạn [bold gold1]20[/bold gold1] bộ 
+                    truyện. Dừng Batch Runner!                                  

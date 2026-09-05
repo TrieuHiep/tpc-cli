@@ -1,0 +1,22 @@
+# ==============================================================================
+# MẪU CẤU HÌNH CRONTAB TỰ ĐỘNG CHẠY HÀNG NGÀY CHO LINUX SERVER
+# ==============================================================================
+# Hướng dẫn cài đặt trên Linux:
+# 1. Mở trình chỉnh sửa crontab của user:
+#    crontab -e
+#
+# 2. Thêm dòng lệnh bên dưới (ví dụ chạy vào lúc 02:00 sáng hàng ngày):
+#    0 2 * * * /bin/bash -c "source ~/.bashrc && cd /path/to/repo && python3 -m auto_translator_daemon.main >> logs/cron_daily.log 2>&1"
+#
+# 3. Để kiểm tra lại cronjob đã lưu chưa:
+#    crontab -l
+#
+# 4. Kiểm tra log realtime khi cron chạy:
+#    tail -f /path/to/repo/logs/cron_daily.log
+# ==============================================================================
+
+# Chạy vào 02:00 sáng mỗi ngày:
+0 2 * * * cd /opt/story-translator && /opt/story-translator/venv/bin/python -m auto_translator_daemon.main >> /opt/story-translator/logs/cron_daily.log 2>&1
+
+# (Tùy chọn) Chạy test thử 1 lần vào lúc 12:00 trưa ở chế độ dry-run để kiểm tra hàng đợi:
+# 0 12 * * * cd /opt/story-translator && /opt/story-translator/venv/bin/python -m auto_translator_daemon.main --dry-run >> /opt/story-translator/logs/cron_dryrun.log 2>&1
