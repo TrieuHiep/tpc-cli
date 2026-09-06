@@ -171,18 +171,49 @@ class AGYRunner:
                                         icon = "🤖"
 
                                     combined_context = f"{srole} {sprompt}"
-                                    nums_in_sub = [int(n) for n in re.findall(r'\b\d+\b', combined_context) if int(n) in set(chapters_to_translate)]
+                                    valid_chaps = set(chapters_to_translate)
+                                    c_range = None
 
-                                    if nums_in_sub:
-                                        min_c, max_c = min(nums_in_sub), max(nums_in_sub)
-                                        cnt = len(set(nums_in_sub))
+                                    # 1. Ưu tiên tìm mảng chương trong ngoặc vuông: [1, 2, 3, ...]
+                                    m_list = re.search(r'\[\s*(\d+(?:[\s,]+\d+)*)\s*\]', combined_context)
+                                    if m_list:
+                                        nums = [int(x) for x in re.findall(r'\d+', m_list.group(1)) if int(x) in valid_chaps]
+                                        if nums:
+                                            c_range = (min(nums), max(nums), len(set(nums)))
+
+                                    # 2. Tìm pattern khoảng chương: chương 1 đến 10, chap 1 -> 10, v.v.
+                                    if not c_range:
+                                        m_range = re.search(r'(?:chương|chap|c)\s*(\d+)\s*(?:đến|-|->|➔|đến chương)\s*(\d+)', combined_context, re.I)
+                                        if m_range:
+                                            c1, c2 = int(m_range.group(1)), int(m_range.group(2))
+                                            if c1 in valid_chaps and c2 in valid_chaps:
+                                                c_range = (min(c1, c2), max(c1, c2), abs(c2 - c1) + 1)
+
+                                    # 3. Fallback: tìm cụm số liên tiếp dài nhất (loại bỏ số rời rạc như 100 trong '100 chương', 4 trong '4 nguyên lý')
+                                    if not c_range:
+                                        all_nums = sorted(list(set(int(n) for n in re.findall(r'\b\d+\b', combined_context) if int(n) in valid_chaps)))
+                                        if all_nums:
+                                            clusters = []
+                                            current = [all_nums[0]]
+                                            for n in all_nums[1:]:
+                                                if n - current[-1] <= 2:
+                                                    current.append(n)
+                                                else:
+                                                    clusters.append(current)
+                                                    current = [n]
+                                            clusters.append(current)
+                                            longest = max(clusters, key=len)
+                                            c_range = (min(longest), max(longest), len(longest))
+
+                                    if c_range:
+                                        min_c, max_c, cnt = c_range
                                         c_label = f"Chương {min_c}" if min_c == max_c else f"Chương {min_c} -> {max_c} ({cnt} chương)"
                                     else:
                                         m_single = re.search(r'(?:chương|chap|c)\s*(\d+)', combined_context, re.I)
                                         if m_single:
                                             c_label = f"Chương {m_single.group(1)}"
                                         else:
-                                            c_label = f"{len(chapters_to_translate)} chương ({chapters_to_translate[0]} -> {chapters_to_translate[-1]})"
+                                            c_label = f"Batch dịch ({len(chapters_to_translate)} chương)"
 
                                     active_subagent = f"{t_label} | {c_label}"
                                     print(f"   {icon} [AGY:{story_id}] Bắt đầu: {active_subagent}", flush=True)

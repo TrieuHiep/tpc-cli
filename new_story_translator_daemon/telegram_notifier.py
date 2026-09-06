@@ -89,8 +89,11 @@ class TelegramNotifier:
         story_lines = []
         for idx, item in enumerate(queue, 1):
             chaps = item['chapters_to_translate']
-            title = item.get('sheet_meta', {}).get('title') or item['story_id']
-            story_lines.append(f"  <b>{idx}.</b> [{item['source']}] <code>{item['story_id']}</code>: {len(chaps)} chaps ({chaps[0]} ➔ {chaps[-1]}) | <i>{title}</i>")
+            sheet_meta = item.get('sheet_meta') or {}
+            title = sheet_meta.get('title') or item['story_id']
+            badge = item.get('badge') or sheet_meta.get('badge') or ""
+            badge_str = f" {badge}" if badge else ""
+            story_lines.append(f"  <b>{idx}.</b> [{item['source']}]{badge_str} <code>{item['story_id']}</code>: {len(chaps)} chaps ({chaps[0]} ➔ {chaps[-1]}) | <i>{title}</i>")
 
         msg = (
             f"🚀 <b>[BẮT ĐẦU CA DỊCH MỚI TỰ ĐỘNG]</b>\n\n"
@@ -127,16 +130,18 @@ class TelegramNotifier:
         )
         self.send_message(msg)
 
-    def notify_story_failed(self, story_id: str, chapters_count: int, reason: str):
+    def notify_story_failed(self, story_id: str, chapters_count: int, reason: str, isolated_path: Optional[str] = None):
         """Thông báo cảnh báo khi một bộ truyện mới gặp sự cố."""
         if not self.is_configured():
             return
 
+        isolate_line = f"📁 <i>Dữ liệu lỗi được cách ly tại: <code>{isolated_path}</code></i>\n" if isolated_path else ""
         msg = (
             f"🚨 <b>[CẢNH BÁO: LỖI TIẾN TRÌNH]</b>\n\n"
             f"📖 <b>Mã truyện:</b> <code>{story_id}</code>\n"
             f"📊 <b>Số chương:</b> {chapters_count} chương\n"
             f"❌ <b>Nguyên nhân:</b> {reason}\n"
+            f"{isolate_line}"
             f"⚠️ <i>Tiến trình đã bỏ qua bộ này và tiếp tục xử lý các truyện tiếp theo.</i>"
         )
         self.send_message(msg)

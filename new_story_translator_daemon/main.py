@@ -92,7 +92,7 @@ def main():
             candidate_sources[src] = [s for s in candidate_sources[src] if s['story_id'] == args.story_id]
 
     # 3. Lập hàng đợi 10 truyện mới (lấy 100 chương đầu)
-    queue = queue_mgr.build_queue(candidate_sources, remote_inspector)
+    queue = queue_mgr.build_queue(candidate_sources, remote_inspector, sort_by=args.sort_by)
 
     if not queue:
         print("\n☕ Không tìm thấy truyện mới nào chưa dịch trên Google Drive (hoặc toàn bộ truyện mới chưa nằm trong Whitelist). Kết thúc.")
@@ -104,8 +104,12 @@ def main():
     print("=" * 75)
     for idx, item in enumerate(queue, 1):
         chaps = item['chapters_to_translate']
-        title = item.get('sheet_meta', {}).get('title') or item['story_id']
-        print(f"  {idx}. [{item['source']}] {item['story_id']}: {len(chaps)} chương ({chaps[0]} -> {chaps[-1]}) | {title}")
+        sheet_meta = item.get('sheet_meta') or {}
+        title = sheet_meta.get('title') or item['story_id']
+        badge = item.get('badge') or sheet_meta.get('badge') or ""
+        badge_str = f" {badge}" if badge else ""
+        priority = item.get('priority') or sheet_meta.get('priority') or 99
+        print(f"  {idx}. [{item['source']}]{badge_str} (P{priority}) {item['story_id']}: {len(chaps)} chương ({chaps[0]} -> {chaps[-1]}) | {title}")
     print("=" * 75)
 
     if args.dry_run:

@@ -14,11 +14,25 @@ from datetime import datetime
 from typing import Dict, Any, List, Optional
 from googleapiclient.http import MediaIoBaseDownload
 
-from new_story_translator_daemon.config import TEMP_NEW_DIR
+from new_story_translator_daemon.config import TEMP_NEW_DIR, TEMP_FAILED_DIR
 from new_story_translator_daemon.agy_runner import AGYRunner
 from new_story_translator_daemon.qc_validator import QCValidator
 from new_story_translator_daemon.drive_syncer import DriveSyncer
 from new_story_translator_daemon.telegram_notifier import TelegramNotifier
+
+def isolate_failed_story(temp_story_dir: Path, story_id: str):
+    """Di chuyển thư mục truyện bị lỗi vào storage/temp_failed để phục vụ kiểm tra/debug."""
+    if not temp_story_dir.exists():
+        return
+    failed_dest = TEMP_FAILED_DIR / story_id
+    if failed_dest.exists():
+        shutil.rmtree(failed_dest, ignore_errors=True)
+    try:
+        shutil.move(str(temp_story_dir), str(failed_dest))
+        print(f"📦 [{story_id}] Đã chuyển dữ liệu lỗi sang {failed_dest} để phục vụ debug/kiểm tra!")
+    except Exception as e:
+        print(f"⚠️ Không thể di chuyển sang {failed_dest} ({e}), tiến hành xóa để dọn đĩa.")
+        shutil.rmtree(temp_story_dir, ignore_errors=True)
 
 def get_drive_auth_token(gdrive_service) -> str:
     """Lấy hoặc làm mới OAuth Bearer token từ gdrive_service."""
@@ -105,8 +119,11 @@ def process_single_new_story(
     temp_story_dir = TEMP_NEW_DIR / story_id
     story_start = datetime.now()
 
+    badge = item.get('badge') or (item.get('sheet_meta') or {}).get('badge') or ""
+    badge_str = f" {badge}" if badge else ""
+    title = (item.get('sheet_meta') or {}).get('title') or story_id
     print("\n" + "=" * 60)
-    print(f"▶️ BẮT ĐẦU DỊCH MỚI: [{item['source']}] {story_id} ({len(chaps)} chương)")
+    print(f"▶️ BẮT ĐẦU DỊCH MỚI: [{item['source']}]{badge_str} {story_id} - {title} ({len(chaps)} chương)")
     print("=" * 60)
 
     # 1. Tải chapters.zip về thư mục tạm với thread-safe token
@@ -155,8 +172,13 @@ def process_single_new_story(
         print(f"❌ [{story_id}] Phát hiện {len(failed_chaps)} chương KHÔNG ĐẠT chuẩn QC:")
         for fc in failed_chaps[:5]:
             print(f"   - Chương {fc['chapter']}: {fc['reason']}")
-        notifier.notify_story_failed(story_id, len(chaps), f"Không đạt kiểm định QC ({len(failed_chaps)} chương lỗi)")
-        shutil.rmtree(temp_story_dir, ignore_errors=True)
+        isolate_failed_story(temp_story_dir, story_id)
+        notifier.notify_story_failed(
+            story_id,
+            len(chaps),
+            f"Không đạt kiểm định QC ({len(failed_chaps)} chương lỗi)",
+            isolated_path=f"storage/temp_failed/{story_id}"
+        )
         return {
             'story_id': story_id,
             'chapters': len(chaps),

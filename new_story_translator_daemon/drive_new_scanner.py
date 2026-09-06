@@ -152,7 +152,10 @@ class DriveNewScanner:
             else:
                 eligible_new_stories.sort(key=lambda x: x['modified_time'] or '', reverse=True)
 
-            print(f"✨ Nguồn [{source}]: Tìm thấy {len(eligible_new_stories)} bộ truyện MỚI CHƯA DỊCH (xếp theo: {sort_by}).")
+            # Ưu tiên theo Priority từ Whitelist (1 = cao nhất, 2, 3...)
+            eligible_new_stories.sort(key=lambda x: (x.get('sheet_meta') or {}).get('priority', 99))
+
+            print(f"✨ Nguồn [{source}]: Tìm thấy {len(eligible_new_stories)} bộ truyện MỚI CHƯA DỊCH (xếp theo: priority + {sort_by}).")
             results[source] = eligible_new_stories
 
         return results

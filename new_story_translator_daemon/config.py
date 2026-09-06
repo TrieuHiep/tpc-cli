@@ -14,6 +14,10 @@ STORAGE_DIR = BASE_DIR / "storage"
 TEMP_NEW_DIR = STORAGE_DIR / "temp_new"
 TEMP_NEW_DIR.mkdir(parents=True, exist_ok=True)
 
+# Thư mục lưu trữ các truyện lỗi để phục vụ kiểm tra/debug
+TEMP_FAILED_DIR = STORAGE_DIR / "temp_failed"
+TEMP_FAILED_DIR.mkdir(parents=True, exist_ok=True)
+
 # Thư mục chứa log từng phiên dịch mới
 LOGS_DIR = BASE_DIR / "logs" / "new_stories"
 LOGS_DIR.mkdir(parents=True, exist_ok=True)
@@ -25,6 +29,31 @@ CONF_DIR = BASE_DIR / "story-translator-cli" / "conf"
 DRIVE_FOLDERS = {
     "truyendichwiki": "1c1W2OYlO8s06DVK3PkLPbi8hkdynGLrc",
     "novel543": "1sulNp0yvLx8G04Uod0KAYPemGSNOsEBP"
+}
+
+# Cấu hình danh sách các Tab trên Google Sheet và Độ Ưu Tiên (Priority Ranking):
+# - priority: Số càng nhỏ thì càng được ưu tiên dịch trước (1 = cao nhất, 2, 3...)
+# - badge: Nhãn hiển thị trực quan trên Telegram và Terminal
+# - gid: ID của từng tab trên Google Sheet
+WHITELIST_TABS_CONFIG = {
+    "gay": {
+        "gid": "1466391364",
+        "priority": 1,          # Ưu tiên số 1: Đam mỹ được đưa lên đầu hàng đợi
+        "badge": "🌈 [ĐAM MỸ]",
+        "default_source": "truyendichwiki"
+    },
+    "truyendichwiki": {
+        "gid": "428851671",
+        "priority": 2,          # Ưu tiên số 2
+        "badge": "",
+        "default_source": "truyendichwiki"
+    },
+    "novel543": {
+        "gid": "2049787905",
+        "priority": 3,          # Ưu tiên số 3
+        "badge": "",
+        "default_source": "novel543"
+    }
 }
 
 # Thứ tự ưu tiên xử lý nguồn truyện
