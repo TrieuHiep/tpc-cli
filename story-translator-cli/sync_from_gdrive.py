@@ -121,7 +121,7 @@ def sync_gdrive_to_local(storage_dir: Path, repo_type: Optional[str] = None, sto
 
 def main():
     parser = argparse.ArgumentParser(description="Story Translator CLI - Google Drive Sync Engine")
-    parser.add_argument("--type", type=str, choices=["truyendichwiki", "novel543"], help="Tùy chọn: Chọn nhóm kho Drive cần đồng bộ")
+    parser.add_argument("--type", type=str, choices=["ixdzs8", "truyendichwiki", "novel543"], help="Tùy chọn: Chọn nhóm kho Drive cần đồng bộ")
     parser.add_argument("--story-id", type=str, help="Tùy chọn: Chỉ đồng bộ DUY NHẤT 1 Mã truyện chỉ định (Ví dụ: W_Ap1lS4CEbyOJSq hoặc 0110518544)")
     parser.add_argument("--raw-only", action="store_true", help="Chỉ tải dữ liệu thô gốc (info.json và chapters.zip), KHÔNG tải ảnh bìa hay translated_chapters.zip")
 

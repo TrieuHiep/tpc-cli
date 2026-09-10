@@ -25,8 +25,10 @@ class WhitelistManager:
 
     @staticmethod
     def normalize_source(source_str: str) -> str:
-        """Chuẩn hóa tên nguồn về định dạng chuẩn (truyendichwiki hoặc novel543)."""
+        """Chuẩn hóa tên nguồn về định dạng chuẩn (ixdzs8, truyendichwiki hoặc novel543)."""
         s = source_str.strip().lower()
+        if "ixdzs8" in s or "ixdz" in s:
+            return "ixdzs8"
         if "truyendichwiki" in s or "truyenwiki" in s:
             return "truyendichwiki"
         if "novel543" in s:
@@ -124,11 +126,29 @@ class WhitelistManager:
         return self.whitelist
 
     def is_whitelisted(self, source: str, story_id: str) -> bool:
-        """Kiểm tra một bộ truyện có nằm trong danh sách được phép tải/dịch hay không."""
+        """Kiểm tra một bộ truyện có nằm trong danh sách được phép tải/dịch hay không.
+        Nguồn ixdzs8 được bypass whitelist 100% (đã qua chọn lọc)."""
         norm_source = self.normalize_source(source)
+        if norm_source == "ixdzs8":
+            return True
         return (norm_source, story_id.strip()) in self.whitelist
 
     def get_story_info(self, source: str, story_id: str) -> Optional[Dict[str, Any]]:
-        """Lấy metadata đã được duyệt của truyện từ Whitelist."""
+        """Lấy metadata đã được duyệt của truyện từ Whitelist.
+        Với ixdzs8, nếu chưa có trong Google Sheet thì tự động gán Priority 2 và nhãn ⚡ [IXDZS8]."""
         norm_source = self.normalize_source(source)
+        if norm_source == "ixdzs8":
+            info = self.whitelist.get((norm_source, story_id.strip()))
+            if info:
+                return info
+            return {
+                'source': 'ixdzs8',
+                'story_id': story_id.strip(),
+                'title': '',
+                'folder_id': '',
+                'total_chapters': 0,
+                'tab_name': 'ixdzs8',
+                'priority': 2,          # Ưu tiên số 2 (sau tab gay)
+                'badge': '⚡ [IXDZS8]'
+            }
         return self.whitelist.get((norm_source, story_id.strip()))

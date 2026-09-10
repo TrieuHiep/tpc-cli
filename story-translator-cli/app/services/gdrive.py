@@ -16,6 +16,7 @@ from app.utils.logger import logger
 SCOPES = ['https://www.googleapis.com/auth/drive']
 
 DRIVE_FOLDERS = {
+    "ixdzs8": "1biCwkUl5IT1R0C-CrZsRpgQkFAX-vE3c",
     "truyendichwiki": "1c1W2OYlO8s06DVK3PkLPbi8hkdynGLrc",
     "novel543": "1sulNp0yvLx8G04Uod0KAYPemGSNOsEBP"
 }

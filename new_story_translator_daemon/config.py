@@ -27,12 +27,14 @@ CONF_DIR = BASE_DIR / "story-translator-cli" / "conf"
 
 # ID thư mục gốc của các nguồn trên Google Drive
 DRIVE_FOLDERS = {
+    "ixdzs8": "1biCwkUl5IT1R0C-CrZsRpgQkFAX-vE3c",
     "truyendichwiki": "1c1W2OYlO8s06DVK3PkLPbi8hkdynGLrc",
     "novel543": "1sulNp0yvLx8G04Uod0KAYPemGSNOsEBP"
 }
 
 # Cấu hình danh sách các Tab trên Google Sheet và Độ Ưu Tiên (Priority Ranking):
 # - priority: Số càng nhỏ thì càng được ưu tiên dịch trước (1 = cao nhất, 2, 3...)
+#   (Lưu ý: Nguồn ixdzs8 bypass whitelist và được gán mặc định Priority 2)
 # - badge: Nhãn hiển thị trực quan trên Telegram và Terminal
 # - gid: ID của từng tab trên Google Sheet
 WHITELIST_TABS_CONFIG = {
@@ -44,20 +46,20 @@ WHITELIST_TABS_CONFIG = {
     },
     "truyendichwiki": {
         "gid": "428851671",
-        "priority": 2,          # Ưu tiên số 2
+        "priority": 3,          # Ưu tiên số 3 (sau ixdzs8 - Priority 2)
         "badge": "",
         "default_source": "truyendichwiki"
     },
     "novel543": {
         "gid": "2049787905",
-        "priority": 3,          # Ưu tiên số 3
+        "priority": 4,          # Ưu tiên số 4
         "badge": "",
         "default_source": "novel543"
     }
 }
 
-# Thứ tự ưu tiên xử lý nguồn truyện
-SOURCE_PRIORITY = ["truyendichwiki", "novel543"]
+# Thứ tự ưu tiên xử lý nguồn truyện (ixdzs8 ưu tiên cao nhất trong các kho Drive)
+SOURCE_PRIORITY = ["ixdzs8", "truyendichwiki", "novel543"]
 
 # Số chương dịch cho mỗi truyện mới (chương 1 -> 100)
 TARGET_CHAPTERS_PER_STORY = 100

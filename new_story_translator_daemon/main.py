@@ -43,7 +43,7 @@ def parse_args():
     parser.add_argument("--limit-stories", type=int, default=TARGET_STORY_QUEUE_SIZE, help=f"Số lượng truyện trong hàng đợi (Mặc định: {TARGET_STORY_QUEUE_SIZE}).")
     parser.add_argument("--chapters", type=int, default=TARGET_CHAPTERS_PER_STORY, help=f"Số chương dịch cho mỗi truyện mới (Mặc định: {TARGET_CHAPTERS_PER_STORY}).")
     parser.add_argument("--sort-by", type=str, choices=["recent", "oldest"], default="recent", help="Tiêu chí sắp xếp: recent (mới nhất) hoặc oldest (cũ nhất). Mặc định: recent.")
-    parser.add_argument("--source", type=str, choices=["truyendichwiki", "novel543"], default=None, help="Chỉ định quét riêng 1 nguồn cụ thể.")
+    parser.add_argument("--source", type=str, choices=["ixdzs8", "truyendichwiki", "novel543"], default=None, help="Chỉ định quét riêng 1 nguồn cụ thể.")
     parser.add_argument("--story-id", type=str, default=None, help="Chỉ định dịch riêng 1 story_id cụ thể (bỏ qua quét toàn bộ).")
     parser.add_argument("--no-upload", action="store_true", help="Bỏ qua bước upload lên Google Drive (dùng cho chạy thử nghiệm an toàn).")
     parser.add_argument("--timeout", type=float, default=TIMEOUT_HOURS, help=f"Timeout tối đa cho mỗi mẻ AGY CLI tính theo giờ (Mặc định: {TIMEOUT_HOURS}h).")

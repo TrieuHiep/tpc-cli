@@ -9,27 +9,25 @@ import urllib.request
 from pathlib import Path
 from typing import Dict, Any, Optional, Tuple
 
-from auto_translator_daemon.config import STORAGE_DIR
+from auto_translator_daemon.config import STORAGE_DIR, WHITELIST_TABS_CONFIG
 
-# Danh sách URL xuất CSV của từng Tab tương ứng với từng nguồn
-WHITELIST_TABS = {
-    "truyendichwiki": "https://docs.google.com/spreadsheets/d/1SDAZTNhL9gEr37JCNV8GIvNwFXNK8yXvAPJ-4lPp-QY/export?format=csv&gid=428851671",
-    "novel543": "https://docs.google.com/spreadsheets/d/1SDAZTNhL9gEr37JCNV8GIvNwFXNK8yXvAPJ-4lPp-QY/export?format=csv&gid=2049787905"
-}
+GOOGLE_SHEET_BASE_CSV = "https://docs.google.com/spreadsheets/d/1SDAZTNhL9gEr37JCNV8GIvNwFXNK8yXvAPJ-4lPp-QY/export?format=csv&gid="
 
 class WhitelistManager:
-    """Tải và đối chiếu danh sách Whitelist truyện từ cả 2 tab Google Sheet."""
+    """Tải và đối chiếu danh sách Whitelist truyện từ các tab Google Sheet theo cấu hình."""
 
-    def __init__(self, tab_urls: Optional[Dict[str, str]] = None):
-        self.tab_urls = tab_urls or WHITELIST_TABS
+    def __init__(self, tabs_config: Optional[Dict[str, Dict[str, Any]]] = None):
+        self.tabs_config = tabs_config or WHITELIST_TABS_CONFIG
         self.cache_file = STORAGE_DIR / "whitelist_cache.json"
         self.whitelist: Dict[Tuple[str, str], Dict[str, Any]] = {}
         self.load_whitelist()
 
     @staticmethod
     def normalize_source(source_str: str) -> str:
-        """Chuẩn hóa tên nguồn về định dạng chuẩn (truyendichwiki hoặc novel543)."""
+        """Chuẩn hóa tên nguồn về định dạng chuẩn (ixdzs8, truyendichwiki hoặc novel543)."""
         s = source_str.strip().lower()
+        if "ixdzs8" in s or "ixdz" in s:
+            return "ixdzs8"
         if "truyendichwiki" in s or "truyenwiki" in s:
             return "truyendichwiki"
         if "novel543" in s:
@@ -37,10 +35,22 @@ class WhitelistManager:
         return s
 
     def fetch_from_google_sheet(self) -> Dict[Tuple[str, str], Dict[str, Any]]:
-        """Tải dữ liệu CSV từ tất cả các Tab trong Google Sheet."""
+        """Tải dữ liệu CSV từ tất cả các Tab trong Google Sheet theo thứ tự ưu tiên."""
         whitelist = {}
 
-        for default_source, url in self.tab_urls.items():
+        # Sắp xếp các tab theo priority tăng dần để tab ưu tiên cao nhất được nạp trước
+        sorted_tabs = sorted(self.tabs_config.items(), key=lambda x: x[1].get('priority', 99))
+
+        for tab_name, tab_cfg in sorted_tabs:
+            gid = tab_cfg.get("gid", "")
+            if not gid:
+                continue
+
+            url = f"{GOOGLE_SHEET_BASE_CSV}{gid}"
+            default_source = tab_cfg.get("default_source", tab_name)
+            priority = tab_cfg.get("priority", 99)
+            badge = tab_cfg.get("badge", "")
+
             try:
                 req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'})
                 with urllib.request.urlopen(req, timeout=15) as resp:
@@ -58,21 +68,28 @@ class WhitelistManager:
                     chap_count = row.get('Số Chapter', '').strip()
 
                     if source and story_id:
-                        whitelist[(source, story_id)] = {
+                        key = (source, story_id)
+                        existing = whitelist.get(key)
+                        if existing and existing.get('priority', 99) <= priority:
+                            continue
+
+                        whitelist[key] = {
                             'source': source,
                             'story_id': story_id,
                             'title': title,
                             'folder_id': folder_id,
-                            'total_chapters': int(chap_count) if chap_count.isdigit() else 0
+                            'total_chapters': int(chap_count) if chap_count.isdigit() else 0,
+                            'tab_name': tab_name,
+                            'priority': priority,
+                            'badge': badge
                         }
                         tab_count += 1
 
-                print(f"   📑 Tab [{default_source}]: Đã nạp {tab_count} bộ truyện.")
+                badge_str = f" {badge}" if badge else ""
+                print(f"   📑 Tab [{tab_name}]{badge_str} (Ưu tiên {priority}): Đã nạp {tab_count} bộ truyện.")
 
             except Exception as e:
-                print(f"⚠️ Lỗi tải tab [{default_source}]: {e}")
-
-        return whitelist
+                print(f"⚠️ Lỗi tải tab [{tab_name}]: {e}")
 
         return whitelist
 
@@ -107,11 +124,28 @@ class WhitelistManager:
         return self.whitelist
 
     def is_whitelisted(self, source: str, story_id: str) -> bool:
-        """Kiểm tra một bộ truyện có nằm trong danh sách được phép tải/dịch hay không."""
+        """Kiểm tra một bộ truyện có nằm trong danh sách được phép tải/dịch hay không.
+        Nguồn ixdzs8 được bypass whitelist 100% (đã qua chọn lọc)."""
         norm_source = self.normalize_source(source)
+        if norm_source == "ixdzs8":
+            return True
         return (norm_source, story_id.strip()) in self.whitelist
 
     def get_story_info(self, source: str, story_id: str) -> Optional[Dict[str, Any]]:
         """Lấy metadata đã được duyệt của truyện từ Whitelist."""
         norm_source = self.normalize_source(source)
+        if norm_source == "ixdzs8":
+            info = self.whitelist.get((norm_source, story_id.strip()))
+            if info:
+                return info
+            return {
+                'source': 'ixdzs8',
+                'story_id': story_id.strip(),
+                'title': '',
+                'folder_id': '',
+                'total_chapters': 0,
+                'tab_name': 'ixdzs8',
+                'priority': 2,
+                'badge': '⚡ [IXDZS8]'
+            }
         return self.whitelist.get((norm_source, story_id.strip()))
