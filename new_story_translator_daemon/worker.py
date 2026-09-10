@@ -170,14 +170,15 @@ def process_single_new_story(
     failed_chaps = [d for d in qc_details if not d['passed']]
     if not qc_passed:
         print(f"❌ [{story_id}] Phát hiện {len(failed_chaps)} chương KHÔNG ĐẠT chuẩn QC:")
-        for fc in failed_chaps[:5]:
+        for fc in failed_chaps:
             print(f"   - Chương {fc['chapter']}: {fc['reason']}")
         isolate_failed_story(temp_story_dir, story_id)
         notifier.notify_story_failed(
             story_id,
             len(chaps),
             f"Không đạt kiểm định QC ({len(failed_chaps)} chương lỗi)",
-            isolated_path=f"storage/temp_failed/{story_id}"
+            isolated_path=f"storage/temp_failed/{story_id}",
+            failed_details=failed_chaps
         )
         return {
             'story_id': story_id,

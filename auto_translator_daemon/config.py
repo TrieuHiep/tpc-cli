@@ -13,6 +13,10 @@ STORAGE_DIR = BASE_DIR / "storage"
 LOGS_DIR = BASE_DIR / "logs"
 LOGS_DIR.mkdir(parents=True, exist_ok=True)
 
+# Thư mục lưu trữ các truyện lỗi để phục vụ kiểm tra/debug
+TEMP_FAILED_DIR = STORAGE_DIR / "temp_failed"
+TEMP_FAILED_DIR.mkdir(parents=True, exist_ok=True)
+
 # Thư mục chứa file xác thực Google Drive
 CONF_DIR = BASE_DIR / "story-translator-cli" / "conf"
 

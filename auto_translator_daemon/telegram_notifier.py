@@ -3,6 +3,7 @@ Module gửi thông báo tự động qua Telegram Group Topic.
 Sử dụng thư viện chuẩn urllib, không phụ thuộc thư viện ngoài.
 """
 import json
+import html
 import urllib.request
 import urllib.error
 from typing import List, Dict, Any, Optional
@@ -110,16 +111,38 @@ class TelegramNotifier:
         )
         self.send_message(msg)
 
-    def notify_story_failed(self, story_id: str, chapters_count: int, reason: str):
-        """Thông báo cảnh báo khi một bộ truyện gặp sự cố."""
+    def notify_story_failed(
+        self,
+        story_id: str,
+        chapters_count: int,
+        reason: str,
+        isolated_path: Optional[str] = None,
+        failed_details: Optional[List[Dict[str, Any]]] = None
+    ):
+        """Thông báo cảnh báo khi một bộ truyện gặp sự cố, bao gồm chi tiết các chương lỗi QC."""
         if not self.is_configured():
             return
+
+        details_section = ""
+        if failed_details:
+            lines = []
+            for fd in failed_details[:8]:
+                chap = fd.get('chapter', '?')
+                r = html.escape(str(fd.get('reason', '')))
+                lines.append(f"  • <b>Chương {chap}:</b> {r}")
+            if len(failed_details) > 8:
+                lines.append(f"  • <i>... và {len(failed_details) - 8} chương lỗi khác</i>")
+            details_section = "\n🔍 <b>Chi tiết chương lỗi:</b>\n" + "\n".join(lines) + "\n"
+
+        isolate_line = f"\n📦 <b>Thư mục cách ly (Debug):</b> <code>{isolated_path}</code>" if isolated_path else ""
 
         msg = (
             f"🚨 <b>[CẢNH BÁO: LỖI TIẾN TRÌNH]</b>\n\n"
             f"📖 <b>Mã truyện:</b> <code>{story_id}</code>\n"
             f"📊 <b>Số chương:</b> {chapters_count} chương\n"
             f"❌ <b>Nguyên nhân:</b> {reason}\n"
+            f"{details_section}"
+            f"{isolate_line}\n"
             f"⚠️ <i>Tiến trình đã bỏ qua bộ này và tiếp tục xử lý các truyện tiếp theo.</i>"
         )
         self.send_message(msg)

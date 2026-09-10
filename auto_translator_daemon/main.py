@@ -28,8 +28,23 @@ from auto_translator_daemon.config import (
     DAILY_CHAPTER_LIMIT,
     BOUNDARY_STRATEGY,
     TIMEOUT_HOURS,
-    STORAGE_DIR
+    STORAGE_DIR,
+    TEMP_FAILED_DIR
 )
+
+def isolate_failed_story(temp_story_dir: Path, story_id: str):
+    """Di chuyển thư mục truyện bị lỗi vào storage/temp_failed để phục vụ kiểm tra/debug."""
+    if not temp_story_dir.exists():
+        return
+    failed_dest = TEMP_FAILED_DIR / story_id
+    if failed_dest.exists():
+        shutil.rmtree(failed_dest, ignore_errors=True)
+    try:
+        shutil.move(str(temp_story_dir), str(failed_dest))
+        print(f"📦 [{story_id}] Đã chuyển dữ liệu lỗi sang {failed_dest} để phục vụ debug/kiểm tra!")
+    except Exception as e:
+        print(f"⚠️ Không thể di chuyển sang {failed_dest} ({e}), tiến hành xóa để dọn đĩa.")
+        shutil.rmtree(temp_story_dir, ignore_errors=True)
 from auto_translator_daemon.whitelist_manager import WhitelistManager
 from auto_translator_daemon.web_priority_manager import WebPriorityManager
 from auto_translator_daemon.drive_scanner import DriveScanner
@@ -210,9 +225,16 @@ def main():
         failed_chaps = [d for d in qc_details if not d['passed']]
         if not qc_passed:
             print(f"❌ [{story_id}] Phát hiện {len(failed_chaps)} chương KHÔNG ĐẠT chuẩn QC:")
-            for fc in failed_chaps[:5]:
+            for fc in failed_chaps:
                 print(f"   - Chương {fc['chapter']}: {fc['reason']}")
-            notifier.notify_story_failed(story_id, len(chaps), f"Không đạt kiểm định QC ({len(failed_chaps)} chương lỗi)")
+            isolate_failed_story(temp_story_dir, story_id)
+            notifier.notify_story_failed(
+                story_id,
+                len(chaps),
+                f"Không đạt kiểm định QC ({len(failed_chaps)} chương lỗi)",
+                isolated_path=f"storage/temp_failed/{story_id}",
+                failed_details=failed_chaps
+            )
             execution_results.append({
                 'story_id': story_id,
                 'chapters': len(chaps),
@@ -220,7 +242,6 @@ def main():
                 'qc_status': f'FAILED ({len(failed_chaps)} chaps) ❌',
                 'sync_status': 'BLOCKED 🛑'
             })
-            shutil.rmtree(temp_story_dir, ignore_errors=True)
             continue
 
         print(f"✅ [{story_id}] Toàn bộ {len(chaps)} chương ĐẠT 100% chuẩn QC!")
