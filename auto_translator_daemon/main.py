@@ -102,6 +102,7 @@ def main():
     # 2. CHẶNG 1: Quét các truyện ưu tiên từ Web (Thịnh Phong Các API)
     # Lấy danh sách từ API trước, duyệt và thẩm định từng truyện qua RAM
     # Nếu chạm trần args.chapters -> BỎ QUA HOÀN TOÀN Chặng 2 (Google Sheet Whitelist)
+    web_queue = []
     current_count = 0
     processed_story_ids = set()
 
