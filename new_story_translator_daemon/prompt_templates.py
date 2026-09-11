@@ -27,7 +27,8 @@ NEW_STORY_GOAL_PROMPT_TEMPLATE = (
     'thì tự suy luận tiêu đề ngắn gọn 3-8 từ phù hợp theo nội dung chương phục vụ nạp CSDL); '
     '(3) Tuân thủ 4 nguyên lý dịch mượt mà, khử triệt để từ ngữ convert, Hán-Việt lỗi thời và tiếng lóng mạng Trung Quốc; '
     '(4) Bản dịch không bị cắt cụt, cắt gọt hay tóm tắt so với bản gốc (tỷ lệ ký tự đạt chuẩn); '
-    '(5) Khởi tạo hoàn chỉnh file glossary.json và summary.txt trong thư mục truyện phục vụ cho các phiên dịch tiếp theo.'
+    '(5) Khởi tạo hoàn chỉnh file glossary.json và summary.txt trong thư mục truyện phục vụ cho các phiên dịch tiếp theo; '
+    '(6) 🔴 Tự động loại bỏ 100% rác quảng cáo, dự thu văn truyện mới, lời tác giả xin phiếu/hoa/donate/bình chọn ở đầu hoặc cuối chương (nếu có); chỉ dịch trọn vẹn phần nội dung cốt truyện chính.'
 )
 
 

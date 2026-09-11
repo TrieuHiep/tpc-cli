@@ -17,7 +17,8 @@ DEFAULT_GOAL_PROMPT_TEMPLATE = (
     '(2) Dòng đầu tiên của mỗi file content_vi.txt bắt buộc theo định dạng "Chương X: [Tiêu đề]" (nếu truyện gốc thiếu tiêu đề thì tự động suy luận tiêu đề ngắn gọn 3-8 từ phù hợp theo nội dung chương phục vụ nạp CSDL); '
     '(3) Tuân thủ 4 nguyên lý dịch và quy chuẩn của skill dich_truyen_web; '
     '(4) Bản dịch các chương không bị cắt cụt, cắt gọt so với bản gốc; '
-    '(5) Câu văn dịch mượt mà, tự nhiên, gãy gọn theo nghĩa tiếng Việt, ý nghĩa không bị lủng củng.'
+    '(5) Câu văn dịch mượt mà, tự nhiên, gãy gọn theo nghĩa tiếng Việt, ý nghĩa không bị lủng củng; '
+    '(6) 🔴 Tự động loại bỏ 100% rác quảng cáo, dự thu văn truyện mới, lời tác giả xin phiếu/hoa/donate/bình chọn ở đầu hoặc cuối chương (nếu có); chỉ dịch trọn vẹn phần nội dung cốt truyện chính.'
 )
 
 

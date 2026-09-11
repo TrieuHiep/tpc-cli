@@ -59,7 +59,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Auto Translator Daemon - Quét và dịch truyện tự động hàng ngày qua AGY CLI.")
     parser.add_argument("--dry-run", action="store_true", help="Chỉ quét và lập danh sách hàng đợi qua RAM, không tải file, không gọi dịch và không upload Drive.")
     parser.add_argument("--sort-by", type=str, choices=["recent", "oldest"], default="recent", help="Tiêu chí sắp xếp ưu tiên: recent (modifiedTime mới nhất) hoặc oldest (tồn đọng lâu nhất). Mặc định: recent.")
-    parser.add_argument("--limit", type=int, default=DAILY_CHAPTER_LIMIT, help=f"Hạn mức tổng số chương dịch tối đa trong ngày (Mặc định: {DAILY_CHAPTER_LIMIT}).")
+    parser.add_argument("--chapters", "--limit", dest="chapters", type=int, default=DAILY_CHAPTER_LIMIT, help=f"Hạn mức tổng số chương dịch tối đa trong ngày (Mặc định: {DAILY_CHAPTER_LIMIT}).")
     parser.add_argument("--strategy", type=str, choices=["ATOMIC", "SPLIT"], default=BOUNDARY_STRATEGY, help=f"Chiến lược xử lý khi chạm trần (Mặc định: {BOUNDARY_STRATEGY}).")
     parser.add_argument("--timeout", type=float, default=TIMEOUT_HOURS, help=f"Timeout tối đa cho mỗi mẻ AGY CLI tính theo giờ (Mặc định: {TIMEOUT_HOURS} giờ).")
     parser.add_argument("--story-id", type=str, default=None, help="Chỉ định dịch riêng 1 story_id cụ thể (bỏ qua quét toàn bộ).")
@@ -72,7 +72,7 @@ def main():
 
     print("=" * 70)
     print(f"🤖 AUTO TRANSLATOR DAEMON KHỞI ĐỘNG: {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
-    print(f"⚙️ Cấu hình: Hạn mức = {args.limit} chaps | Sắp xếp = {args.sort_by} | Chiến lược = {args.strategy} | Timeout = {args.timeout}h | Dry-run = {args.dry_run}")
+    print(f"⚙️ Cấu hình: Hạn mức = {args.chapters} chaps | Sắp xếp = {args.sort_by} | Chiến lược = {args.strategy} | Timeout = {args.timeout}h | Dry-run = {args.dry_run}")
     print("=" * 70)
 
     # 1. Khởi tạo dịch vụ
@@ -91,7 +91,7 @@ def main():
             web_priority_mgr=web_priority_mgr
         )
         inspector = ChapterInspector(gdrive_service)
-        queue_mgr = QueueManager(limit=args.limit, strategy=args.strategy)
+        queue_mgr = QueueManager(limit=args.chapters, strategy=args.strategy)
         agy_runner = AGYRunner(timeout_hours=args.timeout)
         qc_validator = QCValidator()
         syncer = DriveSyncer(gdrive_service)
@@ -99,9 +99,9 @@ def main():
         print(f"❌ Khởi tạo dịch vụ thất bại: {e}")
         sys.exit(1)
 
-    # 2. Xây dựng hàng đợi theo kiến trúc 2 chặng:
-    # CHẶNG 1: Fast-Path Web Priority (trỏ thẳng driveUrl từ Web API, không phụ thuộc thư mục cha)
-    web_queue = []
+    # 2. CHẶNG 1: Quét các truyện ưu tiên từ Web (Thịnh Phong Các API)
+    # Lấy danh sách từ API trước, duyệt và thẩm định từng truyện qua RAM
+    # Nếu chạm trần args.chapters -> BỎ QUA HOÀN TOÀN Chặng 2 (Google Sheet Whitelist)
     current_count = 0
     processed_story_ids = set()
 
@@ -111,25 +111,25 @@ def main():
             web_priority_mgr.priority_stories = {args.story_id: web_priority_mgr.get_story_info(args.story_id)}
             web_queue, current_count, processed_story_ids = scanner.inspect_web_priority_stories(
                 inspector,
-                limit=args.limit,
+                limit=args.chapters,
                 strategy=args.strategy
             )
             web_priority_mgr.priority_stories = orig_stories
     else:
         web_queue, current_count, processed_story_ids = scanner.inspect_web_priority_stories(
             inspector,
-            limit=args.limit,
+            limit=args.chapters,
             strategy=args.strategy
         )
 
     # CHẶNG 2: Whitelist Fallback (Chỉ chạy khi Quota ngày vẫn còn dư)
     whitelist_queue = []
-    if current_count >= args.limit:
-        print(f"\n🎯 Quota ngày ({args.limit} chaps) đã được lấp đầy 100% bởi truyện Ưu Tiên Web!")
+    if current_count >= args.chapters:
+        print(f"\n🎯 Quota ngày ({args.chapters} chaps) đã được lấp đầy 100% bởi truyện Ưu Tiên Web!")
         print("⚡ BỎ QUA HOÀN TOÀN việc quét Google Sheet Whitelist và Google Drive.")
     else:
-        remaining_quota = args.limit - current_count
-        print(f"\n📑 [CHẶNG 2] Quota còn dư {remaining_quota}/{args.limit} chaps. Bắt đầu tải Google Sheet Whitelist để bù đắp...")
+        remaining_quota = args.chapters - current_count
+        print(f"\n📑 [CHẶNG 2] Quota còn dư {remaining_quota}/{args.chapters} chaps. Bắt đầu tải Google Sheet Whitelist để bù đắp...")
 
         # Khởi tạo WhitelistManager theo cơ chế Lazy Loading (chỉ tải khi thực sự cần)
         whitelist_mgr = WhitelistManager()
@@ -171,7 +171,7 @@ def main():
 
     # Gửi thông báo bắt đầu ca dịch qua Telegram
     total_planned_chaps = sum(len(item['chapters_to_translate']) for item in queue)
-    notifier.notify_session_start(queue, total_planned_chaps, args.limit, args.sort_by)
+    notifier.notify_session_start(queue, total_planned_chaps, args.chapters, args.sort_by)
 
     # 4. Thực thi dịch thuật, hậu kiểm QC và đồng bộ Drive
     execution_results = []
