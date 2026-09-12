@@ -3,14 +3,15 @@ Module quản lý hàng đợi Lazy Queue Builder:
 Quét cuốn chiếu từng truyện một qua RAM, đủ trần 300 chương thì DỪNG LẬP TỨC (Early Stop).
 """
 from typing import List, Dict, Any
-from auto_translator_daemon.config import DAILY_CHAPTER_LIMIT, BOUNDARY_STRATEGY, SOURCE_PRIORITY
+from auto_translator_daemon.config import DAILY_CHAPTER_LIMIT, BOUNDARY_STRATEGY, SOURCE_PRIORITY, MAX_CHAPTERS_PER_STORY
 
 class QueueManager:
     """Xây dựng hàng đợi dịch theo cơ chế Lazy Streaming & Early Stop."""
 
-    def __init__(self, limit: int = DAILY_CHAPTER_LIMIT, strategy: str = BOUNDARY_STRATEGY):
+    def __init__(self, limit: int = DAILY_CHAPTER_LIMIT, strategy: str = BOUNDARY_STRATEGY, max_per_story: int = MAX_CHAPTERS_PER_STORY):
         self.limit = limit
         self.strategy = strategy
+        self.max_per_story = max_per_story
 
     def build_lazy_queue(
         self,
@@ -84,19 +85,27 @@ class QueueManager:
             if remaining <= 0:
                 break
 
-            if current_count + chap_len <= self.limit:
+            # Xác định số lượng chương mong muốn cho truyện này (tôn trọng max_per_story nếu > 0)
+            desired_len = min(chap_len, self.max_per_story) if self.max_per_story > 0 else chap_len
+
+            if current_count + desired_len <= self.limit:
+                selected_chaps = new_chaps[:desired_len]
+                is_partial = len(selected_chaps) < chap_len
                 queue.append({
                     'story_id': story_id,
                     'source': source,
                     'story_info': s_info,
-                    'chapters_to_translate': new_chaps,
-                    'is_partial': False,
+                    'chapters_to_translate': selected_chaps,
+                    'is_partial': is_partial,
                     'total_new_available': chap_len,
                     'inspected_meta': inspected,
                     'is_web_priority': False
                 })
-                current_count += chap_len
-                print(f"  ➕ [{story_id}]{badge_str}: Nhận toàn bộ {chap_len} chương. (Tích lũy: {current_count}/{self.limit})")
+                current_count += len(selected_chaps)
+                if is_partial:
+                    print(f"  ✂️ [{story_id}]{badge_str}: Giới hạn tối đa {self.max_per_story} chaps/truyện. Lấy {len(selected_chaps)}/{chap_len} chương đầu. (Tích lũy: {current_count}/{self.limit})")
+                else:
+                    print(f"  ➕ [{story_id}]{badge_str}: Nhận toàn bộ {chap_len} chương. (Tích lũy: {current_count}/{self.limit})")
 
             else:
                 if self.strategy == "SPLIT":
@@ -115,7 +124,7 @@ class QueueManager:
                     print(f"  ✂️ [{story_id}]{badge_str}: Chạm trần quota! Lấy {len(selected_chaps)}/{chap_len} chương đầu (chế độ SPLIT). (Tích lũy: {current_count}/{self.limit})")
                     break
                 else:
-                    print(f"  🛑 [{story_id}]{badge_str}: Có {chap_len} chương mới, vượt quota còn lại ({remaining}). Dừng lại theo ATOMIC để bảo toàn mạch truyện.")
+                    print(f"  🛑 [{story_id}]{badge_str}: Có {desired_len} chương cần dịch, vượt quota còn lại ({remaining}). Dừng lại theo ATOMIC để bảo toàn mạch truyện.")
                     break
 
             if current_count >= self.limit:

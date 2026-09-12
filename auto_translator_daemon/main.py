@@ -26,6 +26,7 @@ sys.path.insert(0, str(BASE_DIR / "story-translator-cli"))
 from app.services.gdrive import GoogleDriveService
 from auto_translator_daemon.config import (
     DAILY_CHAPTER_LIMIT,
+    MAX_CHAPTERS_PER_STORY,
     BOUNDARY_STRATEGY,
     TIMEOUT_HOURS,
     STORAGE_DIR,
@@ -60,6 +61,7 @@ def parse_args():
     parser.add_argument("--dry-run", action="store_true", help="Chỉ quét và lập danh sách hàng đợi qua RAM, không tải file, không gọi dịch và không upload Drive.")
     parser.add_argument("--sort-by", type=str, choices=["recent", "oldest"], default="recent", help="Tiêu chí sắp xếp ưu tiên: recent (modifiedTime mới nhất) hoặc oldest (tồn đọng lâu nhất). Mặc định: recent.")
     parser.add_argument("--chapters", "--limit", dest="chapters", type=int, default=DAILY_CHAPTER_LIMIT, help=f"Hạn mức tổng số chương dịch tối đa trong ngày (Mặc định: {DAILY_CHAPTER_LIMIT}).")
+    parser.add_argument("--max-per-story", type=int, default=MAX_CHAPTERS_PER_STORY, help=f"Số chương tối đa phân bổ cho 1 bộ truyện trong phiên (0 = không giới hạn, Mặc định: {MAX_CHAPTERS_PER_STORY}).")
     parser.add_argument("--strategy", type=str, choices=["ATOMIC", "SPLIT"], default=BOUNDARY_STRATEGY, help=f"Chiến lược xử lý khi chạm trần (Mặc định: {BOUNDARY_STRATEGY}).")
     parser.add_argument("--timeout", type=float, default=TIMEOUT_HOURS, help=f"Timeout tối đa cho mỗi mẻ AGY CLI tính theo giờ (Mặc định: {TIMEOUT_HOURS} giờ).")
     parser.add_argument("--story-id", type=str, default=None, help="Chỉ định dịch riêng 1 story_id cụ thể (bỏ qua quét toàn bộ).")
@@ -70,9 +72,13 @@ def main():
     args = parse_args()
     start_time = datetime.now()
 
+    max_per_story = args.max_per_story
+    if args.story_id and "--max-per-story" not in sys.argv:
+        max_per_story = 0
+
     print("=" * 70)
     print(f"🤖 AUTO TRANSLATOR DAEMON KHỞI ĐỘNG: {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
-    print(f"⚙️ Cấu hình: Hạn mức = {args.chapters} chaps | Sắp xếp = {args.sort_by} | Chiến lược = {args.strategy} | Timeout = {args.timeout}h | Dry-run = {args.dry_run}")
+    print(f"⚙️ Cấu hình: Hạn mức = {args.chapters} chaps | Max/Truyện = {max_per_story if max_per_story > 0 else 'Không giới hạn'} | Sắp xếp = {args.sort_by} | Chiến lược = {args.strategy} | Timeout = {args.timeout}h | Dry-run = {args.dry_run}")
     print("=" * 70)
 
     # 1. Khởi tạo dịch vụ
@@ -91,7 +97,7 @@ def main():
             web_priority_mgr=web_priority_mgr
         )
         inspector = ChapterInspector(gdrive_service)
-        queue_mgr = QueueManager(limit=args.chapters, strategy=args.strategy)
+        queue_mgr = QueueManager(limit=args.chapters, strategy=args.strategy, max_per_story=max_per_story)
         agy_runner = AGYRunner(timeout_hours=args.timeout)
         qc_validator = QCValidator()
         syncer = DriveSyncer(gdrive_service)
@@ -113,14 +119,16 @@ def main():
             web_queue, current_count, processed_story_ids = scanner.inspect_web_priority_stories(
                 inspector,
                 limit=args.chapters,
-                strategy=args.strategy
+                strategy=args.strategy,
+                max_per_story=max_per_story
             )
             web_priority_mgr.priority_stories = orig_stories
     else:
         web_queue, current_count, processed_story_ids = scanner.inspect_web_priority_stories(
             inspector,
             limit=args.chapters,
-            strategy=args.strategy
+            strategy=args.strategy,
+            max_per_story=max_per_story
         )
 
     # CHẶNG 2: Whitelist Fallback (Chỉ chạy khi Quota ngày vẫn còn dư)
@@ -163,8 +171,10 @@ def main():
     print("\n📋 DANH SÁCH CÁC BỘ TRUYỆN ĐƯỢC CHỌN VÀO HÀNG ĐỢI:")
     for idx, item in enumerate(queue, 1):
         chaps = item['chapters_to_translate']
+        raw_total = (item.get('inspected_meta') or {}).get('raw_chapters_count')
+        total_str = f" / {raw_total} chaps" if raw_total else ""
         tag_vip = " [⭐ ƯU TIÊN WEB]" if item.get('is_web_priority') else ""
-        print(f"  {idx}. [{item['source']}] {item['story_id']}{tag_vip}: {len(chaps)} chương ({chaps[0]} -> {chaps[-1]}) {'[DỊCH DỞ]' if item['is_partial'] else '[TRỌN VẸN]'}")
+        print(f"  {idx}. [{item['source']}] {item['story_id']}{tag_vip}: {len(chaps)} chương ({chaps[0]} -> {chaps[-1]}{total_str}) {'[DỊCH DỞ]' if item['is_partial'] else '[TRỌN VẸN]'}")
 
     if args.dry_run:
         print("\n🔍 Chế độ --dry-run đang bật. Đã hoàn tất mô phỏng quét qua RAM (0 byte ghi xuống ổ cứng).")
@@ -249,16 +259,17 @@ def main():
 
         # 4.4. Đồng bộ ngược lên Google Drive (Nếu không bật cờ --no-upload)
         story_duration_str = str(datetime.now() - story_start).split('.')[0]
+        raw_total = (item.get('inspected_meta') or {}).get('raw_chapters_count')
 
         if args.no_upload:
             print(f"\n⚠️ [{story_id}] CỜ --no-upload ĐANG BẬT: Bỏ qua bước đóng gói và upload Google Drive theo yêu cầu thử nghiệm.")
             sync_status_str = "SKIPPED (--no-upload)"
-            notifier.notify_story_success(story_id, len(chaps), f"{chaps[0]} -> {chaps[-1]}", story_duration_str, uploaded=False)
+            notifier.notify_story_success(story_id, len(chaps), f"{chaps[0]} -> {chaps[-1]}", story_duration_str, uploaded=False, total_raw=raw_total)
         else:
             sync_success = syncer.sync_story(item['story_info'], temp_story_dir, chaps)
             sync_status_str = "SUCCESS ✅" if sync_success else "FAILED ❌"
             if sync_success:
-                notifier.notify_story_success(story_id, len(chaps), f"{chaps[0]} -> {chaps[-1]}", story_duration_str, uploaded=True)
+                notifier.notify_story_success(story_id, len(chaps), f"{chaps[0]} -> {chaps[-1]}", story_duration_str, uploaded=True, total_raw=raw_total)
 
         execution_results.append({
             'story_id': story_id,

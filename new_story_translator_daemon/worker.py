@@ -193,16 +193,17 @@ def process_single_new_story(
 
     # 4. Tạo mới và upload lên Google Drive
     story_duration_str = str(datetime.now() - story_start).split('.')[0]
+    raw_total = item.get('raw_total')
 
     if no_upload:
         print(f"\n⚠️ [{story_id}] CỜ --no-upload ĐANG BẬT: Bỏ qua upload Drive theo yêu cầu thử nghiệm.")
         sync_status_str = "SKIPPED (--no-upload)"
-        notifier.notify_story_success(story_id, len(chaps), f"{chaps[0]} -> {chaps[-1]}", story_duration_str, uploaded=False)
+        notifier.notify_story_success(story_id, len(chaps), f"{chaps[0]} -> {chaps[-1]}", story_duration_str, uploaded=False, total_raw=raw_total)
     else:
         sync_success = syncer.sync_story(item['story_info'], temp_story_dir, chaps)
         sync_status_str = "SUCCESS ✅" if sync_success else "FAILED ❌"
         if sync_success:
-            notifier.notify_story_success(story_id, len(chaps), f"{chaps[0]} -> {chaps[-1]}", story_duration_str, uploaded=True)
+            notifier.notify_story_success(story_id, len(chaps), f"{chaps[0]} -> {chaps[-1]}", story_duration_str, uploaded=True, total_raw=raw_total)
 
     # 5. Dọn dẹp thư mục tạm giải phóng ổ cứng
     print(f"🧹 [{story_id}] Đang giải phóng bộ nhớ đĩa ({temp_story_dir})...")

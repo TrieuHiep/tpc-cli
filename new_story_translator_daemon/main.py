@@ -104,12 +104,14 @@ def main():
     print("=" * 75)
     for idx, item in enumerate(queue, 1):
         chaps = item['chapters_to_translate']
+        raw_total = item.get('raw_total')
+        total_str = f" / {raw_total} chaps" if raw_total else ""
         sheet_meta = item.get('sheet_meta') or {}
         title = sheet_meta.get('title') or item['story_id']
         badge = item.get('badge') or sheet_meta.get('badge') or ""
         badge_str = f" {badge}" if badge else ""
         priority = item.get('priority') or sheet_meta.get('priority') or 99
-        print(f"  {idx}. [{item['source']}]{badge_str} (P{priority}) {item['story_id']}: {len(chaps)} chương ({chaps[0]} -> {chaps[-1]}) | {title}")
+        print(f"  {idx}. [{item['source']}]{badge_str} (P{priority}) {item['story_id']}: {len(chaps)} chương ({chaps[0]} -> {chaps[-1]}{total_str}) | {title}")
     print("=" * 75)
 
     if args.dry_run:

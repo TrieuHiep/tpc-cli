@@ -6,6 +6,20 @@ from pathlib import Path
 # Thư mục gốc dự án
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# Đọc cấu hình từ file .env (nếu có)
+def _load_env_file():
+    env_file = BASE_DIR / ".env"
+    env_vars = {}
+    if env_file.exists():
+        for line in env_file.read_text(encoding='utf-8', errors='ignore').splitlines():
+            line = line.strip()
+            if line and not line.startswith('#') and '=' in line:
+                k, v = line.split('=', 1)
+                env_vars[k.strip()] = v.strip().strip('"').strip("'")
+    return env_vars
+
+_env = _load_env_file()
+
 # Thư mục lưu trữ dữ liệu truyện cục bộ
 STORAGE_DIR = BASE_DIR / "storage"
 
@@ -59,6 +73,10 @@ SOURCE_PRIORITY = ["ixdzs8", "truyendichwiki", "novel543"]
 # Hạn mức tối đa số chương dịch trong 1 ngày (tránh cạn quota AGY)
 DAILY_CHAPTER_LIMIT = 100
 
+# Số chương tối đa phân bổ cho một bộ truyện trong một phiên chạy (tránh 1 bộ nuốt trọn quota)
+# Giá trị 0 = không giới hạn per-story
+MAX_CHAPTERS_PER_STORY = int(_env.get("MAX_CHAPTERS_PER_STORY", 25))
+
 # Kích thước batch mặc định khi gọi skill dịch
 DEFAULT_BATCH_SIZE = 10
 
@@ -83,20 +101,6 @@ MIN_TRANSLATION_RATIO = 0.85
 MAX_RETRIES = 2
 
 
-# Đọc cấu hình từ file .env (nếu có)
-def _load_env_file():
-    env_file = BASE_DIR / ".env"
-    env_vars = {}
-    if env_file.exists():
-        for line in env_file.read_text(encoding='utf-8', errors='ignore').splitlines():
-            line = line.strip()
-            if line and not line.startswith('#') and '=' in line:
-                k, v = line.split('=', 1)
-                env_vars[k.strip()] = v.strip().strip('"').strip("'")
-    return env_vars
-
-
-_env = _load_env_file()
 
 # Cấu hình Telegram Notification (Topic Group)
 TELEGRAM_BOT_TOKEN = _env.get("TELEGRAM_BOT_TOKEN", "")

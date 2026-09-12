@@ -90,11 +90,13 @@ class TelegramNotifier:
         story_lines = []
         for idx, item in enumerate(queue, 1):
             chaps = item['chapters_to_translate']
+            raw_total = item.get('raw_total')
+            total_str = f" / {raw_total} chaps" if raw_total else ""
             sheet_meta = item.get('sheet_meta') or {}
             title = sheet_meta.get('title') or item['story_id']
             badge = item.get('badge') or sheet_meta.get('badge') or ""
             badge_str = f" {badge}" if badge else ""
-            story_lines.append(f"  <b>{idx}.</b> [{item['source']}]{badge_str} <code>{item['story_id']}</code>: {len(chaps)} chaps ({chaps[0]} ➔ {chaps[-1]}) | <i>{title}</i>")
+            story_lines.append(f"  <b>{idx}.</b> [{item['source']}]{badge_str} <code>{item['story_id']}</code>: {len(chaps)} chaps ({chaps[0]} ➔ {chaps[-1]}{total_str}) | <i>{title}</i>")
 
         msg = (
             f"🚀 <b>[BẮT ĐẦU CA DỊCH MỚI TỰ ĐỘNG]</b>\n\n"
@@ -112,18 +114,20 @@ class TelegramNotifier:
         chapters_count: int,
         chaps_range: str,
         duration_str: str,
-        uploaded: bool = True
+        uploaded: bool = True,
+        total_raw: Optional[int] = None
     ):
         """Thông báo khi 1 bộ truyện mới dịch xong 100 chương, đạt QC và tạo mới trên Drive thành công."""
         if not self.is_configured():
             return
 
+        total_str = f" / {total_raw} chaps" if total_raw else ""
         drive_msg = "Đã tạo mới translated_chapters.zip thành công! 🎉" if uploaded else "Đã bỏ qua upload (Chế độ thử nghiệm --no-upload) ⚠️"
 
         msg = (
             f"✅ <b>[HOÀN THÀNH BỘ TRUYỆN MỚI]</b>\n\n"
             f"📖 <b>Mã truyện:</b> <code>{story_id}</code>\n"
-            f"📊 <b>Số chương khởi tạo:</b> {chapters_count} chương ({chaps_range})\n"
+            f"📊 <b>Số chương khởi tạo:</b> {chapters_count} chương ({chaps_range}{total_str})\n"
             f"⏱ <b>Thời gian xử lý:</b> {duration_str}\n"
             f"🕵️ <b>Hậu kiểm QC:</b> 100% PASSED (Không chữ Hán, sạch HTML)\n"
             f"☁️ <b>Google Drive:</b> {drive_msg}\n"

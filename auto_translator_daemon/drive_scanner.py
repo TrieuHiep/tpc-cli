@@ -99,7 +99,8 @@ class DriveScanner:
         self,
         chapter_inspector,
         limit: int = 100,
-        strategy: str = "SPLIT"
+        strategy: str = "SPLIT",
+        max_per_story: int = 0
     ) -> Tuple[List[Dict[str, Any]], int, Set[str]]:
         """
         Chặng 1: Xử lý Fast-Path các truyện ưu tiên từ Web API theo driveUrl (Folder ID).
@@ -207,19 +208,27 @@ class DriveScanner:
             if remaining_quota <= 0:
                 break
 
-            if current_count + chap_len <= limit:
+            # Xác định số lượng chương mong muốn cho truyện này (tôn trọng max_per_story nếu > 0)
+            desired_len = min(chap_len, max_per_story) if max_per_story > 0 else chap_len
+
+            if current_count + desired_len <= limit:
+                selected_chaps = new_chaps[:desired_len]
+                is_partial = len(selected_chaps) < chap_len
                 web_queue.append({
                     'story_id': story_id,
                     'source': source,
                     'story_info': s_info,
-                    'chapters_to_translate': new_chaps,
-                    'is_partial': False,
+                    'chapters_to_translate': selected_chaps,
+                    'is_partial': is_partial,
                     'total_new_available': chap_len,
                     'inspected_meta': inspected,
                     'is_web_priority': True
                 })
-                current_count += chap_len
-                print(f"  ➕ [{story_id}]: Nhận toàn bộ {chap_len} chương. (Tích lũy: {current_count}/{limit})")
+                current_count += len(selected_chaps)
+                if is_partial:
+                    print(f"  ✂️ [{story_id}]: Giới hạn tối đa {max_per_story} chaps/truyện. Lấy {len(selected_chaps)}/{chap_len} chương đầu. (Tích lũy: {current_count}/{limit})")
+                else:
+                    print(f"  ➕ [{story_id}]: Nhận toàn bộ {chap_len} chương. (Tích lũy: {current_count}/{limit})")
             else:
                 if strategy == "SPLIT":
                     selected_chaps = new_chaps[:remaining_quota]
@@ -237,7 +246,7 @@ class DriveScanner:
                     print(f"  ✂️ [{story_id}]: Chạm trần quota! Lấy {len(selected_chaps)}/{chap_len} chương đầu (chế độ SPLIT). (Tích lũy: {current_count}/{limit})")
                     break
                 else:
-                    print(f"  🛑 [{story_id}]: Có {chap_len} chương mới, vượt quota còn lại ({remaining_quota}). Dừng theo ATOMIC.")
+                    print(f"  🛑 [{story_id}]: Có {desired_len} chương cần dịch, vượt quota còn lại ({remaining_quota}). Dừng theo ATOMIC.")
                     break
 
             if current_count >= limit:

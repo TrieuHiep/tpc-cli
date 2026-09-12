@@ -82,8 +82,10 @@ class TelegramNotifier:
         story_lines = []
         for idx, item in enumerate(queue, 1):
             chaps = item['chapters_to_translate']
+            raw_total = (item.get('inspected_meta') or {}).get('raw_chapters_count')
+            total_str = f" / {raw_total} chaps" if raw_total else ""
             tag_vip = " ⭐ <b>[ƯU TIÊN WEB]</b>" if item.get('is_web_priority') else ""
-            story_lines.append(f"  <b>{idx}.</b> [{item['source']}] <code>{item['story_id']}</code>: {len(chaps)} chaps ({chaps[0]} ➔ {chaps[-1]}){tag_vip}")
+            story_lines.append(f"  <b>{idx}.</b> [{item['source']}] <code>{item['story_id']}</code>: {len(chaps)} chaps ({chaps[0]} ➔ {chaps[-1]}{total_str}){tag_vip}")
 
         msg = (
             f"🚀 <b>[BẮT ĐẦU CA DỊCH TỰ ĐỘNG]</b>\n\n"
@@ -94,17 +96,18 @@ class TelegramNotifier:
         )
         self.send_message(msg)
 
-    def notify_story_success(self, story_id: str, chapters_count: int, chaps_range: str, duration_str: str, uploaded: bool = True):
+    def notify_story_success(self, story_id: str, chapters_count: int, chaps_range: str, duration_str: str, uploaded: bool = True, total_raw: Optional[int] = None):
         """Thông báo khi 1 bộ truyện dịch xong, đạt QC và upload Drive thành công."""
         if not self.is_configured():
             return
 
+        total_str = f" / {total_raw} chaps" if total_raw else ""
         drive_msg = "Đã đồng bộ translated_chapters.zip thành công! 🎉" if uploaded else "Đã bỏ qua upload (Chế độ thử nghiệm --no-upload) ⚠️"
 
         msg = (
             f"✅ <b>[HOÀN THÀNH BỘ TRUYỆN]</b>\n\n"
             f"📖 <b>Mã truyện:</b> <code>{story_id}</code>\n"
-            f"📊 <b>Số chương dịch:</b> {chapters_count} chương ({chaps_range})\n"
+            f"📊 <b>Số chương dịch:</b> {chapters_count} chương ({chaps_range}{total_str})\n"
             f"⏱ <b>Thời gian xử lý:</b> {duration_str}\n"
             f"🕵️ <b>Hậu kiểm QC:</b> 100% PASSED (Không chữ Hán, sạch HTML)\n"
             f"☁️ <b>Google Drive:</b> {drive_msg}"
