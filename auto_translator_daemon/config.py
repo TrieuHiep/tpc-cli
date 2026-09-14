@@ -89,6 +89,19 @@ def get_agy_timeout_str(hours: float = TIMEOUT_HOURS) -> str:
     return f"{int(hours * 60)}m"
 
 
+# Bật/tắt bước Prompt Chaining tổng rà soát sau khi dịch xong
+ENABLE_FINAL_REVIEW = bool(int(_env.get("ENABLE_FINAL_REVIEW", 1)))
+
+# Thời gian timeout cho bước tổng rà soát tính theo GIỜ (mặc định 2 giờ)
+REVIEW_TIMEOUT_HOURS = float(_env.get("REVIEW_TIMEOUT_HOURS", 2.0))
+
+
+def get_agy_review_timeout_str(hours: float = REVIEW_TIMEOUT_HOURS) -> str:
+    """Chuyển đổi số giờ timeout rà soát thành chuỗi định dạng cho AGY CLI (ví dụ: '120m')."""
+    return f"{int(hours * 60)}m"
+
+
+
 # Chiến lược xử lý khi chạm trần DAILY_CHAPTER_LIMIT:
 # - "ATOMIC": Chỉ nhận truyện nếu toàn bộ số chương mới <= quota còn lại (không dịch dở dang).
 # - "SPLIT": Cắt đúng trần quota, chấp nhận dịch một phần chương của truyện cuối.

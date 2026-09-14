@@ -7,6 +7,20 @@ from pathlib import Path
 # Thư mục gốc dự án
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# Đọc cấu hình từ file .env (nếu có)
+def _load_env_file():
+    env_file = BASE_DIR / ".env"
+    env_vars = {}
+    if env_file.exists():
+        for line in env_file.read_text(encoding='utf-8', errors='ignore').splitlines():
+            line = line.strip()
+            if line and not line.startswith('#') and '=' in line:
+                k, v = line.split('=', 1)
+                env_vars[k.strip()] = v.strip().strip('"').strip("'")
+    return env_vars
+
+_env = _load_env_file()
+
 # Thư mục lưu trữ dữ liệu truyện cục bộ
 STORAGE_DIR = BASE_DIR / "storage"
 
@@ -88,21 +102,18 @@ MIN_TRANSLATION_RATIO = 0.85
 # Số lần thử lại tối đa khi AGY hoặc mạng gặp sự cố
 MAX_RETRIES = 2
 
-
-# Đọc cấu hình từ file .env (nếu có)
-def _load_env_file():
-    env_file = BASE_DIR / ".env"
-    env_vars = {}
-    if env_file.exists():
-        for line in env_file.read_text(encoding='utf-8', errors='ignore').splitlines():
-            line = line.strip()
-            if line and not line.startswith('#') and '=' in line:
-                k, v = line.split('=', 1)
-                env_vars[k.strip()] = v.strip().strip('"').strip("'")
-    return env_vars
+# Bật/tắt bước Prompt Chaining tổng rà soát sau khi dịch xong
+ENABLE_FINAL_REVIEW = bool(int(_env.get("ENABLE_FINAL_REVIEW", 1)))
 
 
-_env = _load_env_file()
+# Thời gian timeout cho bước tổng rà soát tính theo GIỜ (mặc định 2 giờ)
+REVIEW_TIMEOUT_HOURS = float(_env.get("REVIEW_TIMEOUT_HOURS", 2.0))
+
+
+def get_agy_review_timeout_str(hours: float = REVIEW_TIMEOUT_HOURS) -> str:
+    """Chuyển đổi số giờ timeout rà soát thành chuỗi định dạng cho AGY CLI (ví dụ: '120m')."""
+    return f"{int(hours * 60)}m"
+
 
 # Cấu hình Telegram Notification (Topic Group chuyên cho Dịch Mới Truyện)
 TELEGRAM_BOT_TOKEN = _env.get("TELEGRAM_BOT_TOKEN", "")

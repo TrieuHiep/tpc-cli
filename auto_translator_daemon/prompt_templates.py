@@ -49,3 +49,34 @@ def build_goal_prompt(
         batch_size=effective_batch_size
     )
 
+
+# Mẫu prompt chuẩn cho AGY CLI lượt 2 (Prompt Chaining) thực hiện tổng rà soát và tự động hiệu đính
+DEFAULT_REVIEW_PROMPT_TEMPLATE = (
+    '/goal Rà soát lại 1 lần nữa xem các chương {chapters_str} có bị cắt gọt nội dung không, '
+    'và mạch truyện có logic không, câu văn dịch có bị lủng củng không, '
+    'đã cắt bỏ 100% các đoạn tác giả tự quảng cáo truyện mới, xin phiếu/hoa/donate ở đầu/cuối chương (nếu có) chưa? '
+    'từ chapter đầu đến chapter cuối.'
+)
+
+
+def build_review_prompt(
+    chapters: List[int],
+    template: str = DEFAULT_REVIEW_PROMPT_TEMPLATE
+) -> str:
+    """
+    Tạo chuỗi prompt /goal rà soát cho lượt 2 (Prompt Chaining).
+
+    Args:
+        chapters: Danh sách các số chương vừa dịch
+        template: Mẫu prompt tùy biến (mặc định lấy DEFAULT_REVIEW_PROMPT_TEMPLATE)
+    """
+    if len(chapters) == 1:
+        chapters_str = f"{chapters[0]}"
+    else:
+        chapters_str = f"{chapters[0]} đến {chapters[-1]}"
+
+    return template.format(
+        chapters_str=chapters_str
+    )
+
+

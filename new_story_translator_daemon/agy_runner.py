@@ -20,17 +20,32 @@ from new_story_translator_daemon.config import (
     get_agy_timeout_str,
     MAX_RETRIES,
     DEFAULT_BATCH_SIZE,
-    AGY_BIN
+    AGY_BIN,
+    ENABLE_FINAL_REVIEW,
+    REVIEW_TIMEOUT_HOURS,
+    get_agy_review_timeout_str
 )
-from new_story_translator_daemon.prompt_templates import build_new_story_goal_prompt
+from new_story_translator_daemon.prompt_templates import (
+    build_new_story_goal_prompt,
+    build_new_story_review_prompt
+)
 
 class AGYRunner:
     """Điều phối và thực thi tiến trình AGY CLI cho từng bộ truyện mới."""
 
-    def __init__(self, timeout_hours: float = TIMEOUT_HOURS, batch_size: int = DEFAULT_BATCH_SIZE):
+    def __init__(
+        self,
+        timeout_hours: float = TIMEOUT_HOURS,
+        batch_size: int = DEFAULT_BATCH_SIZE,
+        enable_final_review: bool = ENABLE_FINAL_REVIEW,
+        review_timeout_hours: float = REVIEW_TIMEOUT_HOURS
+    ):
         self.timeout_hours = timeout_hours
         self.batch_size = batch_size
         self.timeout_str = get_agy_timeout_str(timeout_hours)
+        self.enable_final_review = enable_final_review
+        self.review_timeout_hours = review_timeout_hours
+        self.review_timeout_str = get_agy_review_timeout_str(review_timeout_hours)
 
     def prepare_local_workspace(self, story_dir: Path) -> str:
         """
@@ -128,8 +143,8 @@ class AGYRunner:
                 )
 
                 active_subagent = None
+                conversation_id = None
                 stdout_lines = []
-
                 for line in process.stdout:
                     stdout_lines.append(line)
                     line_str = line.strip()
@@ -140,7 +155,8 @@ class AGYRunner:
                         ev_type = ev.get("event")
 
                         if ev_type == "init":
-                            cid = ev.get("conversation_id", "")[:8]
+                            conversation_id = ev.get("conversation_id")
+                            cid = (conversation_id or "")[:8]
                             print(f"   🌱 [AGY:{story_id}] Khởi tạo phiên (Conversation ID: {cid}...)", flush=True)
 
                         elif ev_type == "step_update":
@@ -252,6 +268,8 @@ class AGYRunner:
                                     print(f"   🔍 [AGY:{story_id}] Đang kiểm tra và nghiệm thu các file chương...", flush=True)
 
                         elif ev_type == "result":
+                            res_obj = ev.get("result", {})
+                            conversation_id = conversation_id or res_obj.get("conversation_id")
                             print(f"   🏁 [AGY:{story_id}] Đã nhận báo cáo nghiệm thu hoàn thành!", flush=True)
                     except Exception:
                         pass
@@ -274,7 +292,22 @@ class AGYRunner:
                     f.write(formatted_log)
 
                 if process.returncode == 0:
-                    print(f"✅ [{story_id}] AGY CLI hoàn thành thành công!", flush=True)
+                    print(f"✅ [{story_id}] AGY CLI hoàn thành thành công Lượt 1 (Dịch & QC batch)!", flush=True)
+
+                    # Kích hoạt Lượt 2: Prompt Chaining tổng rà soát nếu được cấu hình
+                    if self.enable_final_review and conversation_id:
+                        print(f"\n🔗 [{story_id}] Kích hoạt Lượt 2: Prompt Chaining tổng rà soát toàn diện...", flush=True)
+                        review_ok = self.run_final_review(
+                            story_dir=story_dir,
+                            chapters_to_translate=chapters_to_translate,
+                            conversation_id=conversation_id,
+                            log_file=log_file,
+                            story_name=story_name
+                        )
+                        if not review_ok:
+                            print(f"❌ [{story_id}] Lượt 2 (Tổng rà soát) thất bại!", flush=True)
+                            return False
+
                     return True
                 else:
                     print(f"❌ [{story_id}] AGY CLI thất bại (Exit code {process.returncode}):", flush=True)
@@ -294,6 +327,112 @@ class AGYRunner:
 
         print(f"💥 [{story_id}] Đã hết số lần thử lại. Phiên dịch thất bại.", flush=True)
         return False
+
+    def run_final_review(
+        self,
+        story_dir: Path,
+        chapters_to_translate: List[int],
+        conversation_id: str,
+        log_file: Path,
+        story_name: Optional[str] = None
+    ) -> bool:
+        """
+        Thực thi Lượt 2 (Prompt Chaining qua --conversation):
+        Gửi prompt rà soát toàn diện vào chính phiên hội thoại trước đó để Agent kiểm tra
+        và tự động sửa trực tiếp trên file content_vi.txt.
+        """
+        story_id = story_dir.name
+        review_prompt = build_new_story_review_prompt(chapters=chapters_to_translate)
+        date_str = datetime.now().strftime("%Y%m%d_%H%M%S")
+        review_internal_log = LOGS_DIR / f"{story_id}_{date_str}_review_internal.log"
+
+        cmd = [
+            AGY_BIN,
+            "--conversation", conversation_id,
+            "-p", review_prompt,
+            "--project", f"Rà soát {story_id}",
+            "--output-format", "stream-json",
+            "--add-dir", str(story_dir),
+            "--log-file", str(review_internal_log),
+            "--dangerously-skip-permissions",
+            "--print-timeout", self.review_timeout_str
+        ]
+
+        print(f"\n🔍 [{story_id}] Bắt đầu chạy AGY CLI rà soát (Turn 2):", flush=True)
+        print(f"   - Conversation ID: {conversation_id[:8]}...", flush=True)
+        print(f"   - Prompt: {review_prompt}", flush=True)
+        print(f"   - Timeout rà soát: {self.review_timeout_hours} giờ ({self.review_timeout_str})", flush=True)
+
+        review_timeout_sec = int(self.review_timeout_hours * 3600) + 300
+
+        try:
+            process = subprocess.Popen(
+                cmd,
+                cwd=str(BASE_DIR),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                encoding='utf-8',
+                errors='ignore'
+            )
+
+            stdout_lines = []
+            for line in process.stdout:
+                stdout_lines.append(line)
+                line_str = line.strip()
+                if not line_str:
+                    continue
+                try:
+                    ev = json.loads(line_str)
+                    ev_type = ev.get("event")
+                    if ev_type == "step_update":
+                        su = ev.get("step_update", {})
+                        tname = su.get("tool_name", "")
+                        sstate = su.get("state")
+                        tinfo = su.get("tool_info", {})
+
+                        if tname in ("replace_file_content", "write_to_file") and sstate == "DONE":
+                            target = tinfo.get("parameters", {}).get("TargetFile", "")
+                            p_t = Path(target)
+                            if p_t.name == "content_vi.txt":
+                                print(f"   🛠️ [AGY:{story_id}] Đã tự động hiệu đính: Chương {p_t.parent.name}", flush=True)
+                    elif ev_type == "result":
+                        print(f"   🏁 [AGY:{story_id}] Hoàn tất tổng rà soát!", flush=True)
+                except Exception:
+                    pass
+
+            process.wait(timeout=review_timeout_sec)
+            stdout_full = "".join(stdout_lines)
+            stderr_full = process.stderr.read() if process.stderr else ""
+
+            # Nối tiếp log của lượt rà soát vào log file chính của truyện
+            review_header = (
+                f"\n\n{'=' * 75}\n"
+                f"🔍 BÁO CÁO LƯỢT 2 (PROMPT CHAINING RÀ SOÁT): {story_name or story_id}\n"
+                f"📅 Thời gian: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+                f"🎯 Exit Code: {process.returncode}\n"
+                f"{'=' * 75}\n"
+            )
+
+            with open(log_file, "a", encoding="utf-8") as f:
+                f.write(review_header + "\n" + (stdout_full if stdout_full else stderr_full))
+
+            if process.returncode == 0:
+                print(f"✅ [{story_id}] Lượt 2 (Tổng rà soát) hoàn tất thành công!", flush=True)
+                return True
+            else:
+                print(f"❌ [{story_id}] Lượt 2 (Tổng rà soát) thất bại (Exit code {process.returncode})", flush=True)
+                if stderr_full:
+                    print(f"   Stderr: {stderr_full[-500:]}", flush=True)
+                return False
+
+        except subprocess.TimeoutExpired:
+            process.kill()
+            print(f"⏰ [{story_id}] Lượt 2 (Tổng rà soát) bị timeout!", flush=True)
+            return False
+        except Exception as e:
+            print(f"❌ [{story_id}] Lỗi ngoại lệ khi gọi Lượt 2 rà soát: {e}", flush=True)
+            return False
 
     def _format_execution_log(
         self,
