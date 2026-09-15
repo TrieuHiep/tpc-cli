@@ -23,7 +23,8 @@ if [ $# -eq 0 ]; then
         --max-per-story 30
         # --sort-by recent       # recent (mới nhất) hoặc oldest (cũ nhất)
         # --strategy SPLIT       # SPLIT (cắt vừa trần) hoặc ATOMIC (bảo toàn mạch)
-        # --story-id <id>        # Chỉ định dịch riêng 1 story_id
+        # --story-id "id_A, id_B"             # Chỉ định 1 hoặc nhiều story_id phân cách bằng dấu phẩy
+        # --exclude-story-id "id_C, id_D"     # Bỏ qua 1 hoặc nhiều story_id phân cách bằng dấu phẩy
         # --no-upload            # Bỏ qua upload Google Drive (chạy thử nghiệm)
         # --dry-run              # Chỉ mô phỏng quét RAM, không tải file, không dịch
     )

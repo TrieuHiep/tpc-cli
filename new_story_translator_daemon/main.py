@@ -36,6 +36,22 @@ from new_story_translator_daemon.drive_syncer import DriveSyncer
 from new_story_translator_daemon.telegram_notifier import TelegramNotifier
 from new_story_translator_daemon.worker import process_single_new_story
 
+def parse_story_ids(raw_value) -> list:
+    """
+    Chuẩn hóa chuỗi story_id phân tách bằng dấu phẩy thành danh sách duy nhất.
+    Ví dụ: "id_A, id_B, id_C" -> ['id_A', 'id_B', 'id_C']
+    """
+    if not raw_value:
+        return []
+    result = []
+    seen = set()
+    for item in str(raw_value).split(','):
+        sid = item.strip()
+        if sid and sid not in seen:
+            seen.add(sid)
+            result.append(sid)
+    return result
+
 def parse_args():
     parser = argparse.ArgumentParser(description="New Story Translator Daemon - Quét và dịch mới 100 chương đầu cho truyện mới song song.")
     parser.add_argument("--dry-run", action="store_true", help="Chỉ quét và lập danh sách hàng đợi qua RAM, không tải file, không dịch và không upload Drive.")
@@ -44,7 +60,8 @@ def parse_args():
     parser.add_argument("--chapters", type=int, default=TARGET_CHAPTERS_PER_STORY, help=f"Số chương dịch cho mỗi truyện mới (Mặc định: {TARGET_CHAPTERS_PER_STORY}).")
     parser.add_argument("--sort-by", type=str, choices=["recent", "oldest"], default="recent", help="Tiêu chí sắp xếp: recent (mới nhất) hoặc oldest (cũ nhất). Mặc định: recent.")
     parser.add_argument("--source", type=str, choices=["ixdzs8", "truyendichwiki", "novel543"], default=None, help="Chỉ định quét riêng 1 nguồn cụ thể.")
-    parser.add_argument("--story-id", type=str, default=None, help="Chỉ định dịch riêng 1 story_id cụ thể (bỏ qua quét toàn bộ).")
+    parser.add_argument("--story-id", type=str, default=None, help='Chỉ định 1 hoặc nhiều story_id (phân cách bằng dấu phẩy: "id_A, id_B").')
+    parser.add_argument("--exclude-story-id", type=str, default=None, help='Chỉ định loại trừ 1 hoặc nhiều story_id (phân cách bằng dấu phẩy: "id_A, id_B").')
     parser.add_argument("--no-upload", action="store_true", help="Bỏ qua bước upload lên Google Drive (dùng cho chạy thử nghiệm an toàn).")
     parser.add_argument("--timeout", type=float, default=TIMEOUT_HOURS, help=f"Timeout tối đa cho mỗi mẻ AGY CLI tính theo giờ (Mặc định: {TIMEOUT_HOURS}h).")
     return parser.parse_args()
@@ -53,9 +70,18 @@ def main():
     args = parse_args()
     start_time = datetime.now()
 
+    target_story_ids = parse_story_ids(args.story_id)
+    excluded_story_ids = set(parse_story_ids(args.exclude_story_id))
+    if excluded_story_ids and target_story_ids:
+        target_story_ids = [sid for sid in target_story_ids if sid not in excluded_story_ids]
+
     print("=" * 75)
     print(f"🆕 NEW STORY TRANSLATOR DAEMON KHỞI ĐỘNG: {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"⚙️ Cấu hình: Hàng đợi = {args.limit_stories} truyện | Mỗi truyện = {args.chapters} chaps | Song song = {args.workers} workers | Dry-run = {args.dry_run}")
+    if target_story_ids:
+        print(f"🎯 Chỉ định {len(target_story_ids)} story_id: {', '.join(target_story_ids)}")
+    if excluded_story_ids:
+        print(f"🚫 Loại trừ {len(excluded_story_ids)} story_id: {', '.join(excluded_story_ids)}")
     print("=" * 75)
 
     # 1. Khởi tạo các dịch vụ
@@ -86,10 +112,14 @@ def main():
         target_source=args.source
     )
 
-    if args.story_id:
-        print(f"\n🎯 Đang lọc theo story_id chỉ định: {args.story_id}")
+    if excluded_story_ids:
         for src in candidate_sources:
-            candidate_sources[src] = [s for s in candidate_sources[src] if s['story_id'] == args.story_id]
+            candidate_sources[src] = [s for s in candidate_sources[src] if s['story_id'] not in excluded_story_ids]
+
+    if target_story_ids:
+        print(f"\n🎯 Đang lọc theo danh sách {len(target_story_ids)} story_id chỉ định: {', '.join(target_story_ids)}")
+        for src in candidate_sources:
+            candidate_sources[src] = [s for s in candidate_sources[src] if s['story_id'] in target_story_ids]
 
     # 3. Lập hàng đợi 10 truyện mới (lấy 100 chương đầu)
     queue = queue_mgr.build_queue(candidate_sources, remote_inspector, sort_by=args.sort_by)

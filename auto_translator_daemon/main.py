@@ -56,6 +56,22 @@ from auto_translator_daemon.qc_validator import QCValidator
 from auto_translator_daemon.drive_syncer import DriveSyncer
 from auto_translator_daemon.telegram_notifier import TelegramNotifier
 
+def parse_story_ids(raw_value) -> list:
+    """
+    Chuẩn hóa chuỗi story_id phân tách bằng dấu phẩy thành danh sách duy nhất.
+    Ví dụ: "id_A, id_B, id_C" -> ['id_A', 'id_B', 'id_C']
+    """
+    if not raw_value:
+        return []
+    result = []
+    seen = set()
+    for item in str(raw_value).split(','):
+        sid = item.strip()
+        if sid and sid not in seen:
+            seen.add(sid)
+            result.append(sid)
+    return result
+
 def parse_args():
     parser = argparse.ArgumentParser(description="Auto Translator Daemon - Quét và dịch truyện tự động hàng ngày qua AGY CLI.")
     parser.add_argument("--dry-run", action="store_true", help="Chỉ quét và lập danh sách hàng đợi qua RAM, không tải file, không gọi dịch và không upload Drive.")
@@ -64,7 +80,8 @@ def parse_args():
     parser.add_argument("--max-per-story", type=int, default=MAX_CHAPTERS_PER_STORY, help=f"Số chương tối đa phân bổ cho 1 bộ truyện trong phiên (0 = không giới hạn, Mặc định: {MAX_CHAPTERS_PER_STORY}).")
     parser.add_argument("--strategy", type=str, choices=["ATOMIC", "SPLIT"], default=BOUNDARY_STRATEGY, help=f"Chiến lược xử lý khi chạm trần (Mặc định: {BOUNDARY_STRATEGY}).")
     parser.add_argument("--timeout", type=float, default=TIMEOUT_HOURS, help=f"Timeout tối đa cho mỗi mẻ AGY CLI tính theo giờ (Mặc định: {TIMEOUT_HOURS} giờ).")
-    parser.add_argument("--story-id", type=str, default=None, help="Chỉ định dịch riêng 1 story_id cụ thể (bỏ qua quét toàn bộ).")
+    parser.add_argument("--story-id", type=str, default=None, help='Chỉ định 1 hoặc nhiều story_id (phân cách bằng dấu phẩy: "id_A, id_B").')
+    parser.add_argument("--exclude-story-id", type=str, default=None, help='Chỉ định loại trừ 1 hoặc nhiều story_id (phân cách bằng dấu phẩy: "id_A, id_B").')
     parser.add_argument("--no-upload", action="store_true", help="Bỏ qua bước upload/đồng bộ lên Google Drive (dùng cho chạy thử nghiệm an toàn).")
     return parser.parse_args()
 
@@ -72,13 +89,22 @@ def main():
     args = parse_args()
     start_time = datetime.now()
 
+    target_story_ids = parse_story_ids(args.story_id)
+    excluded_story_ids = set(parse_story_ids(args.exclude_story_id))
+    if excluded_story_ids and target_story_ids:
+        target_story_ids = [sid for sid in target_story_ids if sid not in excluded_story_ids]
+
     max_per_story = args.max_per_story
-    if args.story_id and "--max-per-story" not in sys.argv:
+    if target_story_ids and "--max-per-story" not in sys.argv:
         max_per_story = 0
 
     print("=" * 70)
     print(f"🤖 AUTO TRANSLATOR DAEMON KHỞI ĐỘNG: {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"⚙️ Cấu hình: Hạn mức = {args.chapters} chaps | Max/Truyện = {max_per_story if max_per_story > 0 else 'Không giới hạn'} | Sắp xếp = {args.sort_by} | Chiến lược = {args.strategy} | Timeout = {args.timeout}h | Dry-run = {args.dry_run}")
+    if target_story_ids:
+        print(f"🎯 Chỉ định {len(target_story_ids)} story_id: {', '.join(target_story_ids)}")
+    if excluded_story_ids:
+        print(f"🚫 Loại trừ {len(excluded_story_ids)} story_id: {', '.join(excluded_story_ids)}")
     print("=" * 70)
 
     # 1. Khởi tạo dịch vụ
@@ -112,10 +138,11 @@ def main():
     current_count = 0
     processed_story_ids = set()
 
-    if args.story_id:
-        if web_priority_mgr.is_priority(args.story_id):
+    if target_story_ids:
+        priority_targets = {sid: web_priority_mgr.get_story_info(sid) for sid in target_story_ids if web_priority_mgr.is_priority(sid)}
+        if priority_targets:
             orig_stories = web_priority_mgr.priority_stories
-            web_priority_mgr.priority_stories = {args.story_id: web_priority_mgr.get_story_info(args.story_id)}
+            web_priority_mgr.priority_stories = priority_targets
             web_queue, current_count, processed_story_ids = scanner.inspect_web_priority_stories(
                 inspector,
                 limit=args.chapters,
@@ -124,35 +151,47 @@ def main():
             )
             web_priority_mgr.priority_stories = orig_stories
     else:
+        orig_stories = web_priority_mgr.priority_stories
+        if excluded_story_ids:
+            web_priority_mgr.priority_stories = {sid: info for sid, info in orig_stories.items() if sid not in excluded_story_ids}
+
         web_queue, current_count, processed_story_ids = scanner.inspect_web_priority_stories(
             inspector,
             limit=args.chapters,
             strategy=args.strategy,
             max_per_story=max_per_story
         )
+        if excluded_story_ids:
+            web_priority_mgr.priority_stories = orig_stories
 
-    # CHẶNG 2: Whitelist Fallback (Chỉ chạy khi Quota ngày vẫn còn dư)
+    # CHẶNG 2: Whitelist Fallback (Chỉ chạy khi Quota ngày vẫn còn dư hoặc còn truyện chỉ định chưa xử lý)
     whitelist_queue = []
-    if current_count >= args.chapters:
+    unprocessed_targets = set(target_story_ids) - processed_story_ids if target_story_ids else set()
+
+    if current_count >= args.chapters and not unprocessed_targets:
         print(f"\n🎯 Quota ngày ({args.chapters} chaps) đã được lấp đầy 100% bởi truyện Ưu Tiên Web!")
         print("⚡ BỎ QUA HOÀN TOÀN việc quét Google Sheet Whitelist và Google Drive.")
     else:
-        remaining_quota = args.chapters - current_count
-        print(f"\n📑 [CHẶNG 2] Quota còn dư {remaining_quota}/{args.chapters} chaps. Bắt đầu tải Google Sheet Whitelist để bù đắp...")
+        remaining_quota = max(0, args.chapters - current_count)
+        if unprocessed_targets:
+            print(f"\n📑 [CHẶNG 2] Tiếp tục tìm kiếm {len(unprocessed_targets)} story_id còn lại trên Google Drive: {', '.join(unprocessed_targets)}...")
+        else:
+            print(f"\n📑 [CHẶNG 2] Quota còn dư {remaining_quota}/{args.chapters} chaps. Bắt đầu tải Google Sheet Whitelist để bù đắp...")
 
         # Khởi tạo WhitelistManager theo cơ chế Lazy Loading (chỉ tải khi thực sự cần)
         whitelist_mgr = WhitelistManager()
         scanner.whitelist_mgr = whitelist_mgr
 
-        # Quét 2 nguồn trên Drive, tự động loại trừ các truyện đã xử lý ở Chặng 1 (processed_story_ids - Chống trùng lặp 100%)
+        # Quét các nguồn trên Drive, tự động loại trừ các truyện đã xử lý ở Chặng 1 và các truyện bị exclude (Chống trùng lặp 100%)
+        scan_excluded = processed_story_ids.union(excluded_story_ids)
         candidate_sources = scanner.scan_all_sources(
             sort_by=args.sort_by,
-            excluded_story_ids=processed_story_ids
+            excluded_story_ids=scan_excluded
         )
 
-        if args.story_id:
+        if target_story_ids:
             for src in candidate_sources:
-                candidate_sources[src] = [s for s in candidate_sources[src] if s['story_id'] == args.story_id]
+                candidate_sources[src] = [s for s in candidate_sources[src] if s['story_id'] in target_story_ids]
 
         whitelist_queue = queue_mgr.build_lazy_queue(
             candidate_sources,
