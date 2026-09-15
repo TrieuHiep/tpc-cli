@@ -52,10 +52,10 @@ def build_goal_prompt(
 
 # Mẫu prompt chuẩn cho AGY CLI lượt 2 (Prompt Chaining) thực hiện tổng rà soát và tự động hiệu đính
 DEFAULT_REVIEW_PROMPT_TEMPLATE = (
-    '/goal Rà soát lại 1 lần nữa xem các chương {chapters_str} có bị cắt gọt nội dung không, '
+    '/goal Rà soát lại 1 lần nữa xem các chương {chapters_str}  đã đạt tiêu chuẩn QC của /dich_truyen_web chưa, có bị cắt gọt nội dung không, '
     'và mạch truyện có logic không, câu văn dịch có bị lủng củng không, '
     'đã cắt bỏ 100% các đoạn tác giả tự quảng cáo truyện mới, xin phiếu/hoa/donate ở đầu/cuối chương (nếu có) chưa? '
-    'từ chapter đầu đến chapter cuối.'
+    'từ chapter đầu đến chapter cuối. Nếu chưa đạt cần sửa lại'
 )
 
 
