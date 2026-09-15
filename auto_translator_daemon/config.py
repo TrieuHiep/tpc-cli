@@ -77,6 +77,9 @@ DAILY_CHAPTER_LIMIT = 100
 # Giá trị 0 = không giới hạn per-story
 MAX_CHAPTERS_PER_STORY = int(_env.get("MAX_CHAPTERS_PER_STORY", 25))
 
+# Số lượng truyện dịch song song cùng lúc (Mặc định: 2 workers)
+MAX_PARALLEL_WORKERS = int(_env.get("MAX_PARALLEL_WORKERS", 2))
+
 # Kích thước batch mặc định khi gọi skill dịch
 DEFAULT_BATCH_SIZE = 10
 

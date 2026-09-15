@@ -21,6 +21,7 @@ if [ $# -eq 0 ]; then
     ARGS=(
         --chapters 150
         --max-per-story 30
+        --workers 2
         # --sort-by recent       # recent (mới nhất) hoặc oldest (cũ nhất)
         # --strategy SPLIT       # SPLIT (cắt vừa trần) hoặc ATOMIC (bảo toàn mạch)
         # --story-id "id_A, id_B"             # Chỉ định 1 hoặc nhiều story_id phân cách bằng dấu phẩy

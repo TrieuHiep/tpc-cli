@@ -175,7 +175,7 @@ class AGYRunner:
                         if ev_type == "init":
                             conversation_id = ev.get("conversation_id")
                             cid = (conversation_id or "")[:8]
-                            print(f"   🌱 [AGY] Đã khởi tạo phiên (Conversation ID: {cid}...)", flush=True)
+                            print(f"   🌱 [AGY:{story_id}] Khởi tạo phiên (Conversation ID: {cid}...)", flush=True)
                         elif ev_type == "step_update":
                             su = ev.get("step_update", {})
                             stype = su.get("step_type")
@@ -222,13 +222,13 @@ class AGYRunner:
                                             c_label = f"{len(chapters_to_translate)} chương ({chapters_to_translate[0]} -> {chapters_to_translate[-1]})"
 
                                     active_subagent = f"{t_label} | {c_label}"
-                                    print(f"   {icon} [AGY] Bắt đầu: {active_subagent}", flush=True)
+                                    print(f"   {icon} [AGY:{story_id}] Bắt đầu: {active_subagent}", flush=True)
                                 else:
                                     active_subagent = "Subagent"
-                                    print(f"   🚀 [AGY] Bắt đầu điều động Subagent...", flush=True)
+                                    print(f"   🚀 [AGY:{story_id}] Bắt đầu điều động Subagent...", flush=True)
 
                             elif active_subagent and (stype in ("system_message", "user_input") or (stype == "agent_response" and sstate == "ACTIVE")):
-                                print(f"   📥 [AGY] Đã nhận báo cáo hoàn tất từ: {active_subagent}", flush=True)
+                                print(f"   📥 [AGY:{story_id}] Đã nhận báo cáo hoàn tất từ: {active_subagent}", flush=True)
                                 active_subagent = None
 
                             elif tname in ("write_to_file", "replace_file_content") and sstate == "DONE":
@@ -238,27 +238,27 @@ class AGYRunner:
                                     fname = p_target.name
                                     if fname == "content_vi.txt":
                                         chap_dir = p_target.parent.name
-                                        print(f"   📝 [AGY] Đã hoàn thành bản dịch: Chương {chap_dir} ({fname})", flush=True)
+                                        print(f"   📝 [AGY:{story_id}] Đã hoàn thành bản dịch: Chương {chap_dir} ({fname})", flush=True)
                                     elif fname == "glossary.json":
-                                        print(f"   📚 [AGY] Đã cập nhật bảng thuật ngữ truyện (glossary.json)", flush=True)
+                                        print(f"   📚 [AGY:{story_id}] Đã cập nhật bảng thuật ngữ truyện (glossary.json)", flush=True)
                                     elif fname == "summary.txt":
-                                        print(f"   📑 [AGY] Đã cập nhật tóm tắt cốt truyện (summary.txt)", flush=True)
+                                        print(f"   📑 [AGY:{story_id}] Đã cập nhật tóm tắt cốt truyện (summary.txt)", flush=True)
                                     else:
-                                        print(f"   📝 [AGY] Đang cập nhật file: {fname}", flush=True)
+                                        print(f"   📝 [AGY:{story_id}] Đang cập nhật file: {fname}", flush=True)
 
                             elif tname == "run_command" and sstate == "DONE":
                                 cmd_text = tinfo.get("parameters", {}).get("CommandLine", "")
                                 if "glossary" in cmd_text.lower():
-                                    print(f"   📚 [AGY] Đã cập nhật bảng thuật ngữ (glossary.json)", flush=True)
+                                    print(f"   📚 [AGY:{story_id}] Đã cập nhật bảng thuật ngữ (glossary.json)", flush=True)
                                 elif "summary" in cmd_text.lower():
-                                    print(f"   📑 [AGY] Đã cập nhật tóm tắt cốt truyện (summary.txt)", flush=True)
+                                    print(f"   📑 [AGY:{story_id}] Đã cập nhật tóm tắt cốt truyện (summary.txt)", flush=True)
                                 elif "chapters" in cmd_text.lower() or "content_vi" in cmd_text.lower():
-                                    print(f"   🔍 [AGY] Đang nghiệm thu và kiểm tra toàn bộ các file chương...", flush=True)
+                                    print(f"   🔍 [AGY:{story_id}] Đang nghiệm thu và kiểm tra toàn bộ các file chương...", flush=True)
 
                         elif ev_type == "result":
                             res_obj = ev.get("result", {})
                             conversation_id = conversation_id or res_obj.get("conversation_id")
-                            print(f"   🏁 [AGY] Đã nhận báo cáo nghiệm thu hoàn thành!", flush=True)
+                            print(f"   🏁 [AGY:{story_id}] Đã nhận báo cáo nghiệm thu hoàn thành!", flush=True)
                     except Exception:
                         pass
 
@@ -382,9 +382,9 @@ class AGYRunner:
                             target = tinfo.get("parameters", {}).get("TargetFile", "")
                             p_t = Path(target)
                             if p_t.name == "content_vi.txt":
-                                print(f"   🛠️ [AGY] Đã tự động hiệu đính: Chương {p_t.parent.name}", flush=True)
+                                print(f"   🛠️ [AGY:{story_id}] Đã tự động hiệu đính: Chương {p_t.parent.name}", flush=True)
                     elif ev_type == "result":
-                        print(f"   🏁 [AGY] Hoàn tất tổng rà soát!", flush=True)
+                        print(f"   🏁 [AGY:{story_id}] Hoàn tất tổng rà soát!", flush=True)
                 except Exception:
                     pass
 

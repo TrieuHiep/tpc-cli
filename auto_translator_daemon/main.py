@@ -12,6 +12,7 @@ import shutil
 import argparse
 from pathlib import Path
 from datetime import datetime
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # Đảm bảo encoding UTF-8 và xả buffer thời gian thực
 if hasattr(sys.stdout, 'reconfigure'):
@@ -27,25 +28,13 @@ from app.services.gdrive import GoogleDriveService
 from auto_translator_daemon.config import (
     DAILY_CHAPTER_LIMIT,
     MAX_CHAPTERS_PER_STORY,
+    MAX_PARALLEL_WORKERS,
     BOUNDARY_STRATEGY,
     TIMEOUT_HOURS,
     STORAGE_DIR,
     TEMP_FAILED_DIR
 )
-
-def isolate_failed_story(temp_story_dir: Path, story_id: str):
-    """Di chuyển thư mục truyện bị lỗi vào storage/temp_failed để phục vụ kiểm tra/debug."""
-    if not temp_story_dir.exists():
-        return
-    failed_dest = TEMP_FAILED_DIR / story_id
-    if failed_dest.exists():
-        shutil.rmtree(failed_dest, ignore_errors=True)
-    try:
-        shutil.move(str(temp_story_dir), str(failed_dest))
-        print(f"📦 [{story_id}] Đã chuyển dữ liệu lỗi sang {failed_dest} để phục vụ debug/kiểm tra!")
-    except Exception as e:
-        print(f"⚠️ Không thể di chuyển sang {failed_dest} ({e}), tiến hành xóa để dọn đĩa.")
-        shutil.rmtree(temp_story_dir, ignore_errors=True)
+from auto_translator_daemon.worker import process_single_resume_story, isolate_failed_story
 from auto_translator_daemon.whitelist_manager import WhitelistManager
 from auto_translator_daemon.web_priority_manager import WebPriorityManager
 from auto_translator_daemon.drive_scanner import DriveScanner
@@ -78,6 +67,7 @@ def parse_args():
     parser.add_argument("--sort-by", type=str, choices=["recent", "oldest"], default="recent", help="Tiêu chí sắp xếp ưu tiên: recent (modifiedTime mới nhất) hoặc oldest (tồn đọng lâu nhất). Mặc định: recent.")
     parser.add_argument("--chapters", "--limit", dest="chapters", type=int, default=DAILY_CHAPTER_LIMIT, help=f"Hạn mức tổng số chương dịch tối đa trong ngày (Mặc định: {DAILY_CHAPTER_LIMIT}).")
     parser.add_argument("--max-per-story", type=int, default=MAX_CHAPTERS_PER_STORY, help=f"Số chương tối đa phân bổ cho 1 bộ truyện trong phiên (0 = không giới hạn, Mặc định: {MAX_CHAPTERS_PER_STORY}).")
+    parser.add_argument("--workers", type=int, default=MAX_PARALLEL_WORKERS, help=f"Số lượng truyện dịch song song cùng lúc (Mặc định: {MAX_PARALLEL_WORKERS}).")
     parser.add_argument("--strategy", type=str, choices=["ATOMIC", "SPLIT"], default=BOUNDARY_STRATEGY, help=f"Chiến lược xử lý khi chạm trần (Mặc định: {BOUNDARY_STRATEGY}).")
     parser.add_argument("--timeout", type=float, default=TIMEOUT_HOURS, help=f"Timeout tối đa cho mỗi mẻ AGY CLI tính theo giờ (Mặc định: {TIMEOUT_HOURS} giờ).")
     parser.add_argument("--story-id", type=str, default=None, help='Chỉ định 1 hoặc nhiều story_id (phân cách bằng dấu phẩy: "id_A, id_B").')
@@ -100,7 +90,7 @@ def main():
 
     print("=" * 70)
     print(f"🤖 AUTO TRANSLATOR DAEMON KHỞI ĐỘNG: {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
-    print(f"⚙️ Cấu hình: Hạn mức = {args.chapters} chaps | Max/Truyện = {max_per_story if max_per_story > 0 else 'Không giới hạn'} | Sắp xếp = {args.sort_by} | Chiến lược = {args.strategy} | Timeout = {args.timeout}h | Dry-run = {args.dry_run}")
+    print(f"⚙️ Cấu hình: Hạn mức = {args.chapters} chaps | Max/Truyện = {max_per_story if max_per_story > 0 else 'Không giới hạn'} | Song song = {args.workers} workers | Sắp xếp = {args.sort_by} | Chiến lược = {args.strategy} | Timeout = {args.timeout}h | Dry-run = {args.dry_run}")
     if target_story_ids:
         print(f"🎯 Chỉ định {len(target_story_ids)} story_id: {', '.join(target_story_ids)}")
     if excluded_story_ids:
@@ -228,100 +218,53 @@ def main():
     temp_root = STORAGE_DIR / "temp"
     temp_root.mkdir(parents=True, exist_ok=True)
 
-    for item in queue:
-        story_id = item['story_id']
-        chaps = item['chapters_to_translate']
-        temp_story_dir = temp_root / story_id
-        story_start = datetime.now()
+    print(f"\n⚡ Kích hoạt Worker Pool ({args.workers} workers song song) để xử lý {len(queue)} bộ truyện...")
 
-        print("\n" + "#" * 60)
-        print(f"▶️ TIẾN TRÌNH DỊCH: [{item['source']}] {story_id} ({len(chaps)} chương)")
-        print("#" * 60)
-
-        # 4.1. Tải DUY NHẤT bộ truyện này về thư mục tạm
-        download_ok = inspector.download_story_to_dir(item['story_info'], temp_story_dir)
-        if not download_ok:
-            print(f"❌ [{story_id}] Tải dữ liệu về thư mục tạm thất bại!")
-            notifier.notify_story_failed(story_id, len(chaps), "Lỗi tải dữ liệu từ Google Drive về thư mục tạm")
-            execution_results.append({
-                'story_id': story_id,
-                'chapters': len(chaps),
-                'agy_status': 'DOWNLOAD FAILED ❌',
-                'qc_status': 'SKIPPED',
-                'sync_status': 'SKIPPED'
-            })
-            shutil.rmtree(temp_story_dir, ignore_errors=True)
-            continue
-
-        # 4.2. Chạy AGY CLI
-        success = agy_runner.run_translation(temp_story_dir, chaps)
-        if not success:
-            notifier.notify_story_failed(story_id, len(chaps), "AGY CLI kết thúc thất bại hoặc timeout")
-            execution_results.append({
-                'story_id': story_id,
-                'chapters': len(chaps),
-                'agy_status': 'FAILED ❌',
-                'qc_status': 'SKIPPED',
-                'sync_status': 'SKIPPED'
-            })
-            shutil.rmtree(temp_story_dir, ignore_errors=True)
-            continue
-
-        # 4.3. Hậu kiểm chất lượng QC
-        print(f"\n🕵️ [{story_id}] Đang thực hiện hậu kiểm QC (Chữ Hán, thẻ HTML, tỷ lệ cắt gọt)...")
-        chapters_dir = temp_story_dir / "chapters"
-        qc_passed, qc_details = qc_validator.validate_directory_chapters(str(chapters_dir), chaps)
-
-        failed_chaps = [d for d in qc_details if not d['passed']]
-        if not qc_passed:
-            print(f"❌ [{story_id}] Phát hiện {len(failed_chaps)} chương KHÔNG ĐẠT chuẩn QC:")
-            for fc in failed_chaps:
-                print(f"   - Chương {fc['chapter']}: {fc['reason']}")
-            isolate_failed_story(temp_story_dir, story_id)
-            notifier.notify_story_failed(
-                story_id,
-                len(chaps),
-                f"Không đạt kiểm định QC ({len(failed_chaps)} chương lỗi)",
-                isolated_path=f"storage/temp_failed/{story_id}",
-                failed_details=failed_chaps
+    if args.workers <= 1:
+        # Chạy tuần tự nếu workers = 1
+        for item in queue:
+            res = process_single_resume_story(
+                item=item,
+                gdrive_service=gdrive_service,
+                agy_runner=agy_runner,
+                qc_validator=qc_validator,
+                syncer=syncer,
+                notifier=notifier,
+                no_upload=args.no_upload
             )
-            execution_results.append({
-                'story_id': story_id,
-                'chapters': len(chaps),
-                'agy_status': 'SUCCESS ✅',
-                'qc_status': f'FAILED ({len(failed_chaps)} chaps) ❌',
-                'sync_status': 'BLOCKED 🛑'
-            })
-            continue
+            execution_results.append(res)
+    else:
+        # Chạy song song đa luồng
+        with ThreadPoolExecutor(max_workers=args.workers) as executor:
+            future_to_story = {
+                executor.submit(
+                    process_single_resume_story,
+                    item,
+                    gdrive_service,
+                    agy_runner,
+                    qc_validator,
+                    syncer,
+                    notifier,
+                    args.no_upload
+                ): item['story_id']
+                for item in queue
+            }
 
-        print(f"✅ [{story_id}] Toàn bộ {len(chaps)} chương ĐẠT 100% chuẩn QC!")
-
-        # 4.4. Đồng bộ ngược lên Google Drive (Nếu không bật cờ --no-upload)
-        story_duration_str = str(datetime.now() - story_start).split('.')[0]
-        raw_total = (item.get('inspected_meta') or {}).get('raw_chapters_count')
-
-        if args.no_upload:
-            print(f"\n⚠️ [{story_id}] CỜ --no-upload ĐANG BẬT: Bỏ qua bước đóng gói và upload Google Drive theo yêu cầu thử nghiệm.")
-            sync_status_str = "SKIPPED (--no-upload)"
-            notifier.notify_story_success(story_id, len(chaps), f"{chaps[0]} -> {chaps[-1]}", story_duration_str, uploaded=False, total_raw=raw_total)
-        else:
-            sync_success = syncer.sync_story(item['story_info'], temp_story_dir, chaps)
-            sync_status_str = "SUCCESS ✅" if sync_success else "FAILED ❌"
-            if sync_success:
-                notifier.notify_story_success(story_id, len(chaps), f"{chaps[0]} -> {chaps[-1]}", story_duration_str, uploaded=True, total_raw=raw_total)
-
-        execution_results.append({
-            'story_id': story_id,
-            'chapters': len(chaps),
-            'agy_status': 'SUCCESS ✅',
-            'qc_status': 'PASSED ✅',
-            'sync_status': sync_status_str
-        })
-
-        # 4.5. Tự động dọn dẹp sạch thư mục tạm sau khi đồng bộ
-        print(f"🧹 [{story_id}] Đang giải phóng bộ nhớ đĩa (xóa thư mục tạm {temp_story_dir})...")
-        shutil.rmtree(temp_story_dir, ignore_errors=True)
-        print(f"✨ [{story_id}] Đã giải phóng hoàn toàn dung lượng ổ cứng!")
+            for future in as_completed(future_to_story):
+                story_id = future_to_story[future]
+                try:
+                    res = future.result()
+                    execution_results.append(res)
+                except Exception as exc:
+                    print(f"❌ [{story_id}] Ngoại lệ bất ngờ từ worker thread: {exc}")
+                    execution_results.append({
+                        'story_id': story_id,
+                        'chapters': 0,
+                        'agy_status': 'THREAD ERROR ❌',
+                        'qc_status': 'SKIPPED',
+                        'sync_status': 'SKIPPED',
+                        'duration': '0s'
+                    })
 
     # 5. Báo cáo kết quả tổng kết & gửi Telegram kết thúc
     duration = datetime.now() - start_time
