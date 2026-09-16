@@ -6,6 +6,7 @@ import sys
 import json
 import zipfile
 import subprocess
+import threading
 from pathlib import Path
 from datetime import datetime
 from typing import List, Optional, Dict, Any
@@ -161,6 +162,22 @@ class AGYRunner:
                     errors='ignore'
                 )
 
+                stderr_chunks = []
+                def _drain_stderr(pipe, storage):
+                    try:
+                        for err_line in iter(pipe.readline, ''):
+                            storage.append(err_line)
+                    except Exception:
+                        pass
+                    finally:
+                        try:
+                            pipe.close()
+                        except Exception:
+                            pass
+
+                stderr_thread = threading.Thread(target=_drain_stderr, args=(process.stderr, stderr_chunks), daemon=True)
+                stderr_thread.start()
+
                 active_subagent = None
                 conversation_id = None
                 stdout_lines = []
@@ -263,8 +280,9 @@ class AGYRunner:
                         pass
 
                 process.wait(timeout=subproc_timeout_sec)
+                stderr_thread.join(timeout=5)
                 stdout_full = "".join(stdout_lines)
-                stderr_full = process.stderr.read() if process.stderr else ""
+                stderr_full = "".join(stderr_chunks)
 
                 # Format chi tiết tiến trình bao gồm Subagents, QC Auditor và Thao tác
                 formatted_log = self._format_execution_log(
@@ -363,6 +381,22 @@ class AGYRunner:
                 errors='ignore'
             )
 
+            stderr_chunks = []
+            def _drain_review_stderr(pipe, storage):
+                try:
+                    for err_line in iter(pipe.readline, ''):
+                        storage.append(err_line)
+                except Exception:
+                    pass
+                finally:
+                    try:
+                        pipe.close()
+                    except Exception:
+                        pass
+
+            stderr_thread = threading.Thread(target=_drain_review_stderr, args=(process.stderr, stderr_chunks), daemon=True)
+            stderr_thread.start()
+
             stdout_lines = []
             for line in process.stdout:
                 stdout_lines.append(line)
@@ -389,8 +423,9 @@ class AGYRunner:
                     pass
 
             process.wait(timeout=review_timeout_sec)
+            stderr_thread.join(timeout=5)
             stdout_full = "".join(stdout_lines)
-            stderr_full = process.stderr.read() if process.stderr else ""
+            stderr_full = "".join(stderr_chunks)
 
             # Nối tiếp log của lượt rà soát vào log file chính của truyện
             review_header = (
