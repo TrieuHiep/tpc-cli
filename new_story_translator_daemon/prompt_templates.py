@@ -67,10 +67,10 @@ def build_new_story_goal_prompt(
 
 # Mẫu prompt chuẩn cho AGY CLI lượt 2 (Prompt Chaining) thực hiện tổng rà soát cho truyện mới
 NEW_STORY_REVIEW_PROMPT_TEMPLATE = (
-    '/goal Rà soát lại 1 lần nữa xem các chương {chapters_str} đã đạt tiêu chuẩn QC của /dich_truyen_web chưa, có bị cắt gọt nội dung không, '
+    'Rà soát lại 1 lần nữa xem các chương {chapters_str} đã đạt tiêu chuẩn QC của /dich_truyen_web chưa, có bị cắt gọt nội dung không, '
     'và mạch truyện có logic không, câu văn dịch có bị lủng củng không, '
     'đã cắt bỏ 100% các đoạn tác giả tự quảng cáo truyện mới, xin phiếu/hoa/donate ở đầu/cuối chương (nếu có) chưa? '
-    'từ chapter đầu đến chapter cuối. Nếu chưa đạt cần sửa lại'
+    'Nếu chưa đạt cần sửa lại'
 )
 
 
@@ -79,7 +79,7 @@ def build_new_story_review_prompt(
     template: str = NEW_STORY_REVIEW_PROMPT_TEMPLATE
 ) -> str:
     """
-    Tạo chuỗi prompt /goal rà soát cho truyện mới ở lượt 2 (Prompt Chaining).
+    Tạo chuỗi prompt rà soát cho truyện mới ở lượt 2 (Prompt Chaining).
 
     Args:
         chapters: Danh sách các số chương vừa dịch
