@@ -269,7 +269,7 @@ def run_batch(storage_dir: Path, repo_type: str, mode: str, target_chapters: int
         return False
 
     if repo_type.lower() == "all":
-        target_repos = ["ixdzs8", "truyendichwiki", "novel543"]
+        target_repos = ["ixdzs8", "biquge", "truyendichwiki", "novel543"]
     else:
         target_repos = [repo_type.lower()]
 
@@ -359,7 +359,7 @@ def run_batch(storage_dir: Path, repo_type: str, mode: str, target_chapters: int
 
 def main():
     parser = argparse.ArgumentParser(description="Story Translator CLI - Batch Runner Multi-Worker Coordinator")
-    parser.add_argument("--type", type=str, required=True, choices=["ixdzs8", "truyendichwiki", "novel543", "all"], help="BẮT BUỘC: Nhóm kho dataset để thực hiện dịch ('ixdzs8', 'truyendichwiki', 'novel543' hoặc 'all')")
+    parser.add_argument("--type", type=str, required=True, choices=["ixdzs8", "biquge", "truyendichwiki", "novel543", "all"], help="BẮT BUỘC: Nhóm kho dataset để thực hiện dịch ('ixdzs8', 'biquge', 'truyendichwiki', 'novel543' hoặc 'all')")
     parser.add_argument("--mode", type=str, choices=["new", "resume", "retranslate", "all"], default="new", help="Mode hoạt động: 'new' (dịch 200 chap đầu truyện mới), 'resume' (dịch nốt các chap còn lại), 'retranslate' (dịch lại từ đầu) hoặc 'all'")
     parser.add_argument("--storage-dir", type=str, default="storage", help="Đường dẫn thư mục chứa kho dataset local (Mặc định: storage)")
     parser.add_argument("--target-chapters", type=int, default=200, help="Số chương mục tiêu cho Mode new (Mặc định: 200)")

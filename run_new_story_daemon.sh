@@ -23,7 +23,7 @@ if [ $# -eq 0 ]; then
         --limit-stories 4
         --chapters 110
         # --sort-by recent          # recent (mới nhất) hoặc oldest (cũ nhất)
-        # --source truyendichwiki    # Quét riêng 1 nguồn: ixdzs8, truyendichwiki, novel543
+        # --source truyendichwiki    # Quét riêng 1 nguồn: ixdzs8, biquge, truyendichwiki, novel543
         # --story-id "id_A, id_B"             # Chỉ định 1 hoặc nhiều story_id phân cách bằng dấu phẩy
         # --exclude-story-id "id_C, id_D"     # Bỏ qua 1 hoặc nhiều story_id phân cách bằng dấu phẩy
         # --no-upload               # Bỏ qua upload Google Drive (chạy thử nghiệm)

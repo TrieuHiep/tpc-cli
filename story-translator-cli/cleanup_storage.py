@@ -31,7 +31,7 @@ def cleanup_stories(storage_dir: Path, repo_type: str = 'all', stories: list = N
                     exclude_set.add(item.strip())
 
     if repo_type.lower() == 'all':
-        target_repos = ['ixdzs8', 'truyendichwiki', 'novel543']
+        target_repos = ['ixdzs8', 'biquge', 'truyendichwiki', 'novel543']
     else:
         target_repos = [repo_type.lower()]
 
@@ -86,7 +86,7 @@ def cleanup_stories(storage_dir: Path, repo_type: str = 'all', stories: list = N
 
 def main():
     parser = argparse.ArgumentParser(description='Story Translator CLI - Storage Cleanup Engine')
-    parser.add_argument('--type', type=str, default='truyendichwiki', choices=['ixdzs8', 'truyendichwiki', 'novel543', 'all'], help='Kho truyện cần dọn dẹp (Mặc định: truyendichwiki)')
+    parser.add_argument('--type', type=str, default='truyendichwiki', choices=['ixdzs8', 'biquge', 'truyendichwiki', 'novel543', 'all'], help='Kho truyện cần dọn dẹp (Mặc định: truyendichwiki)')
     parser.add_argument('--storage-dir', type=str, default='storage', help='Thư mục storage (Mặc định: storage)')
     parser.add_argument('--stories', nargs='*', default=None, help='Chỉ định dọn dẹp các Story ID cụ thể (phân cách bằng dấu cách hoặc phẩy)')
     parser.add_argument('--exclude', nargs='*', default=['Yee9N1S4CHauW96H'], help='Danh sách Story ID cần BẢO LƯU không dọn dẹp (Mặc định bảo lưu: Yee9N1S4CHauW96H)')

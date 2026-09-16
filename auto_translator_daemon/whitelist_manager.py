@@ -24,10 +24,12 @@ class WhitelistManager:
 
     @staticmethod
     def normalize_source(source_str: str) -> str:
-        """Chuẩn hóa tên nguồn về định dạng chuẩn (ixdzs8, truyendichwiki hoặc novel543)."""
+        """Chuẩn hóa tên nguồn về định dạng chuẩn (ixdzs8, biquge, truyendichwiki hoặc novel543)."""
         s = source_str.strip().lower()
         if "ixdzs8" in s or "ixdz" in s:
             return "ixdzs8"
+        if "biquge" in s or "bqg" in s or "biqu" in s:
+            return "biquge"
         if "truyendichwiki" in s or "truyenwiki" in s:
             return "truyendichwiki"
         if "novel543" in s:
@@ -125,9 +127,9 @@ class WhitelistManager:
 
     def is_whitelisted(self, source: str, story_id: str) -> bool:
         """Kiểm tra một bộ truyện có nằm trong danh sách được phép tải/dịch hay không.
-        Nguồn ixdzs8 được bypass whitelist 100% (đã qua chọn lọc)."""
+        Nguồn ixdzs8 và biquge được bypass whitelist 100% (đã qua chọn lọc)."""
         norm_source = self.normalize_source(source)
-        if norm_source == "ixdzs8":
+        if norm_source in ("ixdzs8", "biquge"):
             return True
         return (norm_source, story_id.strip()) in self.whitelist
 
@@ -147,5 +149,19 @@ class WhitelistManager:
                 'tab_name': 'ixdzs8',
                 'priority': 2,
                 'badge': '⚡ [IXDZS8]'
+            }
+        if norm_source == "biquge":
+            info = self.whitelist.get((norm_source, story_id.strip()))
+            if info:
+                return info
+            return {
+                'source': 'biquge',
+                'story_id': story_id.strip(),
+                'title': '',
+                'folder_id': '',
+                'total_chapters': 0,
+                'tab_name': 'biquge',
+                'priority': 3,
+                'badge': '📖 [BIQUGE]'
             }
         return self.whitelist.get((norm_source, story_id.strip()))

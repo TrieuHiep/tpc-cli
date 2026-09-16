@@ -156,7 +156,7 @@ def sync_metadata_to_gdrive(
 
 def main():
     parser = argparse.ArgumentParser(description="Story Translator CLI - Sync Metadata to Google Drive Engine")
-    parser.add_argument("--type", type=str, default="all", choices=["ixdzs8", "truyendichwiki", "novel543", "all"], help="Kho truyện cần đồng bộ (Mặc định: all)")
+    parser.add_argument("--type", type=str, default="all", choices=["ixdzs8", "biquge", "truyendichwiki", "novel543", "all"], help="Kho truyện cần đồng bộ (Mặc định: all)")
     parser.add_argument("--storage-dir", type=str, default="storage", help="Thư mục storage chứa các kho (Mặc định: storage)")
     parser.add_argument("--story-id", nargs="*", default=None, help="Chỉ định 1 hoặc nhiều Story ID cụ thể (phân cách bằng dấu cách hoặc phẩy)")
     parser.add_argument("--dry-run", action="store_true", help="Chạy kiểm tra thử danh sách file cần upload mà không thực sự ghi lên Drive")
