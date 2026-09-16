@@ -155,8 +155,10 @@ class AGYRunner:
                 process = subprocess.Popen(
                     cmd,
                     cwd=str(BASE_DIR), # Đứng từ gốc repository để nhận diện rules/skills
+                    stdin=subprocess.DEVNULL,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
+                    start_new_session=True,
                     text=True,
                     encoding='utf-8',
                     errors='ignore'
@@ -374,8 +376,10 @@ class AGYRunner:
             process = subprocess.Popen(
                 cmd,
                 cwd=str(BASE_DIR),
+                stdin=subprocess.DEVNULL,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
+                start_new_session=True,
                 text=True,
                 encoding='utf-8',
                 errors='ignore'
