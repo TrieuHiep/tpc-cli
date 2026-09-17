@@ -171,3 +171,49 @@ def _find_agy_binary() -> str:
 
 AGY_BIN = _find_agy_binary()
 
+
+def format_chapter_ranges(chapters: list, arrow: str = "->", max_segments: int = 4) -> str:
+    """
+    Định dạng danh sách số chương thành chuỗi khoảng dễ đọc, tự động gom nhóm dải liên tục:
+    - Rỗng: ""
+    - 1 chương: "chap 74"
+    - Liên tục: "101 -> 150"
+    - Ngắt quãng/vá lỗ hổng: "chap 274, 287" hoặc "chap 173, 202 -> 224, 226 -> 248"
+    """
+    if not chapters:
+        return ""
+    sorted_nums = sorted(list(set(chapters)))
+    if len(sorted_nums) == 1:
+        return f"chap {sorted_nums[0]}"
+
+    ranges = []
+    start = sorted_nums[0]
+    prev = sorted_nums[0]
+
+    for num in sorted_nums[1:]:
+        if num == prev + 1:
+            prev = num
+        else:
+            ranges.append((start, prev))
+            start = num
+            prev = num
+    ranges.append((start, prev))
+
+    if all(s == e for s, e in ranges):
+        if len(ranges) > 5:
+            items = ", ".join(str(s) for s, _ in ranges[:4])
+            return f"chap {items}, ... (+{len(ranges) - 4} chaps)"
+        return f"chap {', '.join(str(s) for s, _ in ranges)}"
+
+    parts = []
+    for s, e in ranges:
+        if s == e:
+            parts.append(f"chap {s}")
+        else:
+            parts.append(f"{s} {arrow} {e}")
+
+    if len(parts) > max_segments:
+        return ", ".join(parts[:max_segments - 1]) + f", ... (+{len(parts) - (max_segments - 1)} dải)"
+
+    return ", ".join(parts)
+

@@ -24,7 +24,8 @@ from new_story_translator_daemon.config import (
     TARGET_STORY_QUEUE_SIZE,
     MAX_PARALLEL_WORKERS,
     TIMEOUT_HOURS,
-    TEMP_NEW_DIR
+    TEMP_NEW_DIR,
+    format_chapter_ranges
 )
 from new_story_translator_daemon.whitelist_manager import WhitelistManager
 from new_story_translator_daemon.drive_new_scanner import DriveNewScanner
@@ -141,7 +142,8 @@ def main():
         badge = item.get('badge') or sheet_meta.get('badge') or ""
         badge_str = f" {badge}" if badge else ""
         priority = item.get('priority') or sheet_meta.get('priority') or 99
-        print(f"  {idx}. [{item['source']}]{badge_str} (P{priority}) {item['story_id']}: {len(chaps)} chương ({chaps[0]} -> {chaps[-1]}{total_str}) | {title}")
+        chaps_range_str = format_chapter_ranges(chaps)
+        print(f"  {idx}. [{item['source']}]{badge_str} (P{priority}) {item['story_id']}: {len(chaps)} chương ({chaps_range_str}{total_str}) | {title}")
     print("=" * 75)
 
     if args.dry_run:

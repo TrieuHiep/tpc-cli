@@ -21,7 +21,8 @@ from auto_translator_daemon.config import (
     AGY_BIN,
     ENABLE_FINAL_REVIEW,
     REVIEW_TIMEOUT_HOURS,
-    get_agy_review_timeout_str
+    get_agy_review_timeout_str,
+    format_chapter_ranges
 )
 from auto_translator_daemon.prompt_templates import build_goal_prompt, build_review_prompt
 
@@ -139,7 +140,7 @@ class AGYRunner:
 
         print(f"\n🚀 [{story_id}] Bắt đầu chạy AGY CLI:", flush=True)
         print(f"   - Tên truyện: {story_name}", flush=True)
-        print(f"   - Số chương cần dịch: {len(chapters_to_translate)} chương ({chapters_to_translate[0]} -> {chapters_to_translate[-1]})", flush=True)
+        print(f"   - Số chương cần dịch: {len(chapters_to_translate)} chương ({format_chapter_ranges(chapters_to_translate)})", flush=True)
         print(f"   - Kích thước batch: {self.batch_size} chương/session", flush=True)
         print(f"   - Project: {project_name}", flush=True)
         print(f"   - Log hội thoại: {log_file}", flush=True)
@@ -238,7 +239,7 @@ class AGYRunner:
                                         if m_single:
                                             c_label = f"Chương {m_single.group(1)}"
                                         else:
-                                            c_label = f"{len(chapters_to_translate)} chương ({chapters_to_translate[0]} -> {chapters_to_translate[-1]})"
+                                            c_label = f"{len(chapters_to_translate)} chương ({format_chapter_ranges(chapters_to_translate)})"
 
                                     active_subagent = f"{t_label} | {c_label}"
                                     print(f"   {icon} [AGY:{story_id}] Bắt đầu: {active_subagent}", flush=True)
@@ -503,7 +504,7 @@ class AGYRunner:
             "=" * 75,
             f"📖 BÁO CÁO PHIÊN DỊCH AGY CLI: {story_name} ({story_id})",
             f"📅 Thời gian: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
-            f"📊 Số chương: {len(chapters)} chương ({chapters[0]} -> {chapters[-1]})",
+            f"📊 Số chương: {len(chapters)} chương ({format_chapter_ranges(chapters)})",
             f"🎯 Exit Code: {returncode}",
             f"🆔 Conversation ID: {conv_id or 'Unknown'}",
             "=" * 75 + "\n"

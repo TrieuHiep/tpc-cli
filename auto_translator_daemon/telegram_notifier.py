@@ -10,7 +10,8 @@ from typing import List, Dict, Any, Optional
 from auto_translator_daemon.config import (
     TELEGRAM_BOT_TOKEN,
     TELEGRAM_CHAT_ID,
-    TELEGRAM_TOPIC_ID
+    TELEGRAM_TOPIC_ID,
+    format_chapter_ranges
 )
 
 class TelegramNotifier:
@@ -85,7 +86,7 @@ class TelegramNotifier:
             raw_total = (item.get('inspected_meta') or {}).get('raw_chapters_count')
             total_str = f" / {raw_total} chaps" if raw_total else ""
             tag_vip = " ⭐ <b>[ƯU TIÊN WEB]</b>" if item.get('is_web_priority') else ""
-            story_lines.append(f"  <b>{idx}.</b> [{item['source']}] <code>{item['story_id']}</code>: {len(chaps)} chaps ({chaps[0]} ➔ {chaps[-1]}{total_str}){tag_vip}")
+            story_lines.append(f"  <b>{idx}.</b> [{item['source']}] <code>{item['story_id']}</code>: {len(chaps)} chaps ({format_chapter_ranges(chaps, arrow='➔')}{total_str}){tag_vip}")
 
         msg = (
             f"🚀 <b>[BẮT ĐẦU CA DỊCH TỰ ĐỘNG]</b>\n\n"

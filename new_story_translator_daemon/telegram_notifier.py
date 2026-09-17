@@ -11,7 +11,8 @@ from typing import List, Dict, Any, Optional
 from new_story_translator_daemon.config import (
     TELEGRAM_BOT_TOKEN,
     TELEGRAM_CHAT_ID,
-    TELEGRAM_NEW_STORY_TOPIC_ID
+    TELEGRAM_NEW_STORY_TOPIC_ID,
+    format_chapter_ranges
 )
 
 class TelegramNotifier:
@@ -96,7 +97,7 @@ class TelegramNotifier:
             title = sheet_meta.get('title') or item['story_id']
             badge = item.get('badge') or sheet_meta.get('badge') or ""
             badge_str = f" {badge}" if badge else ""
-            story_lines.append(f"  <b>{idx}.</b> [{item['source']}]{badge_str} <code>{item['story_id']}</code>: {len(chaps)} chaps ({chaps[0]} ➔ {chaps[-1]}{total_str}) | <i>{title}</i>")
+            story_lines.append(f"  <b>{idx}.</b> [{item['source']}]{badge_str} <code>{item['story_id']}</code>: {len(chaps)} chaps ({format_chapter_ranges(chaps, arrow='➔')}{total_str}) | <i>{title}</i>")
 
         msg = (
             f"🚀 <b>[BẮT ĐẦU CA DỊCH MỚI TỰ ĐỘNG]</b>\n\n"

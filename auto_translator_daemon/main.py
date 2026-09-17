@@ -32,7 +32,8 @@ from auto_translator_daemon.config import (
     BOUNDARY_STRATEGY,
     TIMEOUT_HOURS,
     STORAGE_DIR,
-    TEMP_FAILED_DIR
+    TEMP_FAILED_DIR,
+    format_chapter_ranges
 )
 from auto_translator_daemon.worker import process_single_resume_story, isolate_failed_story
 from auto_translator_daemon.whitelist_manager import WhitelistManager
@@ -203,7 +204,8 @@ def main():
         raw_total = (item.get('inspected_meta') or {}).get('raw_chapters_count')
         total_str = f" / {raw_total} chaps" if raw_total else ""
         tag_vip = " [⭐ ƯU TIÊN WEB]" if item.get('is_web_priority') else ""
-        print(f"  {idx}. [{item['source']}] {item['story_id']}{tag_vip}: {len(chaps)} chương ({chaps[0]} -> {chaps[-1]}{total_str}) {'[DỊCH DỞ]' if item['is_partial'] else '[TRỌN VẸN]'}")
+        chaps_range_str = format_chapter_ranges(chaps)
+        print(f"  {idx}. [{item['source']}] {item['story_id']}{tag_vip}: {len(chaps)} chương ({chaps_range_str}{total_str}) {'[DỊCH DỞ]' if item['is_partial'] else '[TRỌN VẸN]'}")
 
     if args.dry_run:
         print("\n🔍 Chế độ --dry-run đang bật. Đã hoàn tất mô phỏng quét qua RAM (0 byte ghi xuống ổ cứng).")

@@ -14,7 +14,7 @@ from datetime import datetime
 from typing import Dict, Any, List, Optional
 from googleapiclient.http import MediaIoBaseDownload
 
-from new_story_translator_daemon.config import TEMP_NEW_DIR, TEMP_FAILED_DIR
+from new_story_translator_daemon.config import TEMP_NEW_DIR, TEMP_FAILED_DIR, format_chapter_ranges
 from new_story_translator_daemon.agy_runner import AGYRunner
 from new_story_translator_daemon.qc_validator import QCValidator
 from new_story_translator_daemon.drive_syncer import DriveSyncer
@@ -123,7 +123,7 @@ def process_single_new_story(
     badge_str = f" {badge}" if badge else ""
     title = (item.get('sheet_meta') or {}).get('title') or story_id
     print("\n" + "=" * 60)
-    print(f"▶️ BẮT ĐẦU DỊCH MỚI: [{item['source']}]{badge_str} {story_id} - {title} ({len(chaps)} chương)")
+    print(f"▶️ BẮT ĐẦU DỊCH MỚI: [{item['source']}]{badge_str} {story_id} - {title} ({len(chaps)} chương: {format_chapter_ranges(chaps)})")
     print("=" * 60)
 
     # 1. Tải chapters.zip về thư mục tạm với thread-safe token
@@ -195,15 +195,16 @@ def process_single_new_story(
     story_duration_str = str(datetime.now() - story_start).split('.')[0]
     raw_total = item.get('raw_total')
 
+    chaps_range_label = format_chapter_ranges(chaps, arrow="➔")
     if no_upload:
         print(f"\n⚠️ [{story_id}] CỜ --no-upload ĐANG BẬT: Bỏ qua upload Drive theo yêu cầu thử nghiệm.")
         sync_status_str = "SKIPPED (--no-upload)"
-        notifier.notify_story_success(story_id, len(chaps), f"{chaps[0]} -> {chaps[-1]}", story_duration_str, uploaded=False, total_raw=raw_total)
+        notifier.notify_story_success(story_id, len(chaps), chaps_range_label, story_duration_str, uploaded=False, total_raw=raw_total)
     else:
         sync_success = syncer.sync_story(item['story_info'], temp_story_dir, chaps)
         sync_status_str = "SUCCESS ✅" if sync_success else "FAILED ❌"
         if sync_success:
-            notifier.notify_story_success(story_id, len(chaps), f"{chaps[0]} -> {chaps[-1]}", story_duration_str, uploaded=True, total_raw=raw_total)
+            notifier.notify_story_success(story_id, len(chaps), chaps_range_label, story_duration_str, uploaded=True, total_raw=raw_total)
 
     # 5. Dọn dẹp thư mục tạm giải phóng ổ cứng
     print(f"🧹 [{story_id}] Đang giải phóng bộ nhớ đĩa ({temp_story_dir})...")

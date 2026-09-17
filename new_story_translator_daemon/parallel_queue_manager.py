@@ -7,7 +7,8 @@ from typing import List, Dict, Any, Optional
 from new_story_translator_daemon.config import (
     TARGET_CHAPTERS_PER_STORY,
     TARGET_STORY_QUEUE_SIZE,
-    SOURCE_PRIORITY
+    SOURCE_PRIORITY,
+    format_chapter_ranges
 )
 from new_story_translator_daemon.remote_zip_inspector import RemoteZipInspector
 
@@ -92,7 +93,7 @@ class ParallelQueueManager:
             if not selected_chaps:
                 selected_chaps = raw_nums[:self.target_chapters]
 
-            print(f"  ✨ [{story_id}]{badge_str} (P{priority}): Phát hiện {len(raw_nums)} chương raw -> Chọn {len(selected_chaps)} chương đầu ({selected_chaps[0]} ➔ {selected_chaps[-1]})")
+            print(f"  ✨ [{story_id}]{badge_str} (P{priority}): Phát hiện {len(raw_nums)} chương raw -> Chọn {len(selected_chaps)} chương đầu ({format_chapter_ranges(selected_chaps, arrow='➔')})")
 
             queue.append({
                 'story_id': story_id,
