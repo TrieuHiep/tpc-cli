@@ -17,20 +17,18 @@ export HOME="/home/hiept"
 mkdir -p "$SCRIPT_DIR/logs/resume_stories"
 
 # Cấu hình mặc định (dễ dàng bật/tắt comment từng dòng bằng dấu #):
-if [ $# -eq 0 ]; then
-    ARGS=(
-        --chapters 150
-        --max-per-story 30
-        --workers 2
-        # --sort-by recent       # recent (mới nhất) hoặc oldest (cũ nhất)
-        # --strategy SPLIT       # SPLIT (cắt vừa trần) hoặc ATOMIC (bảo toàn mạch)
-        # --story-id "id_A, id_B"             # Chỉ định 1 hoặc nhiều story_id phân cách bằng dấu phẩy
-        # --exclude-story-id "id_C, id_D"     # Bỏ qua 1 hoặc nhiều story_id phân cách bằng dấu phẩy
-        # --no-upload            # Bỏ qua upload Google Drive (chạy thử nghiệm)
-        # --dry-run              # Chỉ mô phỏng quét RAM, không tải file, không dịch
-    )
-    set -- "${ARGS[@]}"
-fi
+ARGS=(
+    --chapters 150
+    --max-per-story 30
+    --workers 2
+    # --sort-by recent       # recent (mới nhất) hoặc oldest (cũ nhất)
+    # --strategy SPLIT       # SPLIT (cắt vừa trần) hoặc ATOMIC (bảo toàn mạch)
+    # --story-id "id_A, id_B"             # Chỉ định 1 hoặc nhiều story_id phân cách bằng dấu phẩy
+    # --exclude-story-id "id_C, id_D"     # Bỏ qua 1 hoặc nhiều story_id phân cách bằng dấu phẩy
+    # --no-upload            # Bỏ qua upload Google Drive (chạy thử nghiệm)
+    # --dry-run              # Chỉ mô phỏng quét RAM, không tải file, không dịch
+)
 
 # Chuyển quyền thực thi sang Python daemon (-u: xả buffer log realtime)
-exec "$SCRIPT_DIR/venv/bin/python" -u -m auto_translator_daemon.main "$@"
+# Nạp cấu hình ARGS từ file trước, sau đó nối thêm "$@" từ dòng lệnh (cho phép bổ sung / ghi đè)
+exec "$SCRIPT_DIR/venv/bin/python" -u -m auto_translator_daemon.main "${ARGS[@]}" "$@"
