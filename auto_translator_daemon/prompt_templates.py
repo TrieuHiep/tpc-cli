@@ -10,15 +10,21 @@ DEFAULT_GOAL_PROMPT_TEMPLATE = (
     '/goal Dịch tiếp truyện {story_id}: sử dụng /dich_truyen_web để dịch truyện "{story_dir}", '
     'các chương cần dịch: {chapters_to_translate}. '
     'Quy tắc phân bổ Subagent: Bắt buộc phân bổ Subagent dịch và QC theo từng batch = {batch_size} chương/session '
-    '(đối với danh sách trên: gom thành các cụm {batch_size} chương tuần tự), mỗi batch hoàn thành ghi toàn bộ '
-    'các file content_vi.txt tương ứng và QC nghiệm thu rồi mới chuyển sang batch tiếp theo theo đúng chuẩn AGENTS.md và skill dich_truyen_web. '
+    '(đối với danh sách trên: gom thành các cụm {batch_size} chương tuần tự). '
+    'BẮT BUỘC khi gọi define_subagent cho translator_subagent và qc_auditor_subagent phải đặt enable_write_tools: true '
+    'để subagents có công cụ trực tiếp lưu và sửa file content_vi.txt. '
+    'Mỗi batch hoàn thành ghi lần lượt từng file content_vi.txt tương ứng và QC nghiệm thu rồi mới chuyển sang batch tiếp theo theo đúng chuẩn AGENTS.md và skill dich_truyen_web. '
+    '🔴 CHỈ THỊ THỰC THI HEADLESS CLI NON-INTERACTIVE (QUAN TRỌNG NHẤT): '
+    '- CẤM TUYỆT ĐỐI xuất tin nhắn văn bản trung gian sau khi gọi invoke_subagent. Im lặng kết thúc lượt công cụ để CLI chờ nhận thông điệp phản hồi từ subagent. '
+    '- Thực hiện liên tục không dừng qua toàn bộ các batch cho đến khi tạo đủ {num_chapters} file content_vi.txt. '
     'Tiêu chí nghiệm thu hoàn thành: '
     '(1) Đã tạo đầy đủ {num_chapters} file content_vi.txt trong các thư mục chương tương ứng tại "{story_dir}/chapters/", sạch 100% chữ Hán và thẻ HTML; '
     '(2) Dòng đầu tiên của mỗi file content_vi.txt bắt buộc theo định dạng "Chương X: [Tiêu đề]" (nếu truyện gốc thiếu tiêu đề thì tự động suy luận tiêu đề ngắn gọn 3-8 từ phù hợp theo nội dung chương phục vụ nạp CSDL); '
     '(3) Tuân thủ 4 nguyên lý dịch và quy chuẩn của skill dich_truyen_web; '
     '(4) Bản dịch các chương không bị cắt cụt, cắt gọt so với bản gốc; '
     '(5) Câu văn dịch mượt mà, tự nhiên, gãy gọn theo nghĩa tiếng Việt, ý nghĩa không bị lủng củng; '
-    '(6) 🔴 Tự động loại bỏ 100% rác quảng cáo, dự thu văn truyện mới, lời tác giả xin phiếu/hoa/donate/bình chọn ở đầu hoặc cuối chương (nếu có); chỉ dịch trọn vẹn phần nội dung cốt truyện chính.'
+    '(6) 🔴 Tự động loại bỏ 100% rác quảng cáo, dự thu văn truyện mới, lời tác giả xin phiếu/hoa/donate/bình chọn ở đầu hoặc cuối chương (nếu có); chỉ dịch trọn vẹn phần nội dung cốt truyện chính; '
+    '(7) Chỉ xuất Báo Cáo Nghiệm Thu Tổng Kết kèm thẻ <!-- GOAL_COMPLETE --> ở cuối cùng khi 100% {num_chapters} file content_vi.txt đã tồn tại trên đĩa.'
 )
 
 
@@ -46,6 +52,41 @@ def build_goal_prompt(
         story_dir=str(story_dir),
         chapters_to_translate=chapters,
         num_chapters=len(chapters),
+        batch_size=effective_batch_size
+    )
+
+
+# Mẫu prompt tiếp tục dịch (Resume Prompt) khi phiên bị ngắt quãng giữa chừng
+DEFAULT_RESUME_PROMPT_TEMPLATE = (
+    'Tiếp tục dịch các chương còn thiếu của truyện {story_id}: '
+    'Hiện tại các chương sau chưa có file content_vi.txt hoặc bị gián đoạn: {missing_chapters_str} (tổng cộng {num_missing} chương). '
+    'Hãy kế thừa glossary.json và summary.txt hiện có tại "{story_dir}", tiếp tục phân bổ translator_subagent và qc_auditor_subagent '
+    '(với enable_write_tools=True) theo batch {batch_size} chương để dịch và hoàn thành toàn bộ các chương còn thiếu này. '
+    '🔴 CẤM xuất tin nhắn trung gian sau khi invoke_subagent. Mỗi chương bắt buộc lưu vào "{story_dir}/chapters/[Chương]/content_vi.txt" '
+    '(dòng 1: Chương X: [Tiêu đề suy luận], sạch 100% chữ Hán và thẻ HTML). '
+    'Chỉ xuất Báo Cáo Nghiệm Thu kèm thẻ <!-- GOAL_COMPLETE --> khi toàn bộ {num_missing} chương còn thiếu đã hoàn thành.'
+)
+
+
+def build_resume_prompt(
+    story_id: str,
+    story_dir: Path,
+    missing_chapters: List[int],
+    batch_size: int = 10,
+    template: str = DEFAULT_RESUME_PROMPT_TEMPLATE
+) -> str:
+    """
+    Tạo chuỗi prompt khôi phục phiên để dịch tiếp các chương còn thiếu.
+    """
+    from auto_translator_daemon.config import format_chapter_ranges
+    missing_str = format_chapter_ranges(missing_chapters)
+    effective_batch_size = 1 if len(missing_chapters) < 10 else batch_size
+
+    return template.format(
+        story_id=story_id,
+        story_dir=str(story_dir),
+        missing_chapters_str=missing_str,
+        num_missing=len(missing_chapters),
         batch_size=effective_batch_size
     )
 

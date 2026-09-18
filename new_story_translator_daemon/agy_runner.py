@@ -24,10 +24,12 @@ from new_story_translator_daemon.config import (
     AGY_BIN,
     ENABLE_FINAL_REVIEW,
     REVIEW_TIMEOUT_HOURS,
-    get_agy_review_timeout_str
+    get_agy_review_timeout_str,
+    format_chapter_ranges
 )
 from new_story_translator_daemon.prompt_templates import (
     build_new_story_goal_prompt,
+    build_new_story_resume_prompt,
     build_new_story_review_prompt
 )
 
@@ -47,6 +49,19 @@ class AGYRunner:
         self.enable_final_review = enable_final_review
         self.review_timeout_hours = review_timeout_hours
         self.review_timeout_str = get_agy_review_timeout_str(review_timeout_hours)
+
+    def get_missing_chapters(self, story_dir: Path, chapters: List[int]) -> List[int]:
+        """Kiểm tra danh sách các chương chưa có file content_vi.txt hợp lệ (tồn tại và dung lượng > 0)."""
+        chapters_dir = story_dir / "chapters"
+        missing = []
+        for c in chapters:
+            c_file = chapters_dir / str(c) / "content_vi.txt"
+            alt_file = chapters_dir / f"chap_{c}" / "content_vi.txt"
+            c_ok = c_file.exists() and c_file.stat().st_size > 0
+            alt_ok = alt_file.exists() and alt_file.stat().st_size > 0
+            if not c_ok and not alt_ok:
+                missing.append(c)
+        return missing
 
     def prepare_local_workspace(self, story_dir: Path) -> str:
         """
@@ -311,8 +326,105 @@ class AGYRunner:
                 with open(log_file, "w", encoding="utf-8") as f:
                     f.write(formatted_log)
 
-                if process.returncode == 0:
-                    print(f"✅ [{story_id}] AGY CLI hoàn thành thành công Lượt 1 (Dịch & QC batch)!", flush=True)
+                # Kiểm tra số lượng chương thực tế đã tạo file content_vi.txt
+                missing = self.get_missing_chapters(story_dir, chapters_to_translate)
+
+                # Nếu tiến trình kết thúc nhưng vẫn còn chương chưa dịch và có conversation_id,
+                # tự động kích hoạt chu trình khôi phục phiên (Resume Loop) để tiếp tục dịch các chương còn thiếu
+                if missing and conversation_id:
+                    print(f"\n⚠️ [{story_id}] AGY CLI lượt đầu kết thúc nhưng còn {len(missing)}/{len(chapters_to_translate)} chương chưa có file content_vi.txt ({format_chapter_ranges(missing)}).", flush=True)
+                    print(f"🔄 [{story_id}] Bắt đầu chu trình tự động khôi phục phiên (Conversation ID: {conversation_id[:8]}...) để dịch tiếp...", flush=True)
+
+                    max_resumes = max(5, ((len(missing) + self.batch_size - 1) // self.batch_size) * 2)
+                    resume_idx = 0
+                    while missing and resume_idx < max_resumes:
+                        resume_idx += 1
+                        missing_range_str = format_chapter_ranges(missing)
+                        print(f"\n▶️ [{story_id}] Lượt khôi phục #{resume_idx}/{max_resumes}: Tiếp tục dịch {len(missing)} chương ({missing_range_str})...", flush=True)
+                        resume_prompt = build_new_story_resume_prompt(
+                            story_id=story_id,
+                            story_dir=story_dir,
+                            missing_chapters=missing,
+                            batch_size=self.batch_size
+                        )
+                        resume_date_str = datetime.now().strftime("%Y%m%d_%H%M%S")
+                        resume_internal_log = LOGS_DIR / f"{story_id}_{resume_date_str}_resume_{resume_idx}_internal.log"
+
+                        resume_cmd = [
+                            AGY_BIN,
+                            "--conversation", conversation_id,
+                            "-p", resume_prompt,
+                            "--project", f"Tiếp tục {story_id}",
+                            "--output-format", "stream-json",
+                            "--add-dir", str(story_dir),
+                            "--log-file", str(resume_internal_log),
+                            "--dangerously-skip-permissions",
+                            "--print-timeout", self.timeout_str
+                        ]
+
+                        try:
+                            res_proc = subprocess.Popen(
+                                resume_cmd,
+                                cwd=str(BASE_DIR),
+                                stdin=subprocess.DEVNULL,
+                                stdout=subprocess.PIPE,
+                                stderr=subprocess.PIPE,
+                                start_new_session=True,
+                                text=True,
+                                encoding='utf-8',
+                                errors='ignore'
+                            )
+
+                            r_stderr_chunks = []
+                            r_err_thread = threading.Thread(target=_drain_stderr, args=(res_proc.stderr, r_stderr_chunks), daemon=True)
+                            r_err_thread.start()
+
+                            r_stdout_lines = []
+                            for r_line in res_proc.stdout:
+                                r_stdout_lines.append(r_line)
+                                r_line_str = r_line.strip()
+                                if not r_line_str:
+                                    continue
+                                try:
+                                    r_ev = json.loads(r_line_str)
+                                    r_ev_type = r_ev.get("event")
+                                    if r_ev_type == "step_update":
+                                        r_su = r_ev.get("step_update", {})
+                                        r_tname = r_su.get("tool_name", "")
+                                        r_sstate = r_su.get("state")
+                                        r_tinfo = r_su.get("tool_info", {})
+                                        if r_tname in ("write_to_file", "replace_file_content") and r_sstate == "DONE":
+                                            r_tgt = r_tinfo.get("parameters", {}).get("TargetFile", "")
+                                            if r_tgt:
+                                                r_pt = Path(r_tgt)
+                                                if r_pt.name == "content_vi.txt":
+                                                    print(f"   📝 [AGY:{story_id}] Khôi phục xong: Chương {r_pt.parent.name}", flush=True)
+                                except Exception:
+                                    pass
+
+                            res_proc.wait(timeout=subproc_timeout_sec)
+                            r_err_thread.join(timeout=5)
+
+                            with open(log_file, "a", encoding="utf-8") as lf:
+                                lf.write(f"\n\n--- RESUME #{resume_idx} OUTPUT ---\n" + "".join(r_stdout_lines))
+
+                        except Exception as e_res:
+                            print(f"⚠️ [{story_id}] Lỗi khi chạy lượt khôi phục #{resume_idx}: {e_res}", flush=True)
+
+                        new_missing = self.get_missing_chapters(story_dir, chapters_to_translate)
+                        if len(new_missing) < len(missing):
+                            done_count = len(missing) - len(new_missing)
+                            print(f"   ✨ [{story_id}] Lượt #{resume_idx} thành công: Đã dịch thêm được {done_count} chương!", flush=True)
+                        missing = new_missing
+                        if not missing:
+                            print(f"🎉 [{story_id}] Toàn bộ {len(chapters_to_translate)} chương đã hoàn thành sau {resume_idx} lượt khôi phục!", flush=True)
+                            break
+
+                # Nghiệm thu danh sách chương cuối cùng sau tất cả các lượt
+                final_missing = self.get_missing_chapters(story_dir, chapters_to_translate)
+
+                if not final_missing:
+                    print(f"✅ [{story_id}] Đã tạo đủ 100% ({len(chapters_to_translate)}/{len(chapters_to_translate)}) file content_vi.txt!", flush=True)
 
                     # Kích hoạt Lượt 2: Prompt Chaining tổng rà soát nếu được cấu hình
                     if self.enable_final_review and conversation_id:
@@ -330,7 +442,7 @@ class AGYRunner:
 
                     return True
                 else:
-                    print(f"❌ [{story_id}] AGY CLI thất bại (Exit code {process.returncode}):", flush=True)
+                    print(f"❌ [{story_id}] AGY CLI chưa hoàn thành: Vẫn còn thiếu {len(final_missing)} chương chưa có content_vi.txt ({format_chapter_ranges(final_missing)})!", flush=True)
                     if stderr_full:
                         print(f"   Stderr: {stderr_full[-500:]}", flush=True)
 

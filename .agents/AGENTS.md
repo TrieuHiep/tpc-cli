@@ -81,9 +81,12 @@ Khi làm việc trong workspace `truyen-online`, Antigravity và các subagent c
      1. **Kích hoạt `translator_subagent` ĐẦU TIÊN** via `invoke_subagent` để dịch, biên tập mượt hóa và ghi file `content_vi.txt`.
      2. **CHỜ `translator_subagent` HOÀN THÀNH 100%** và nhận phản hồi thành công trước khi kích hoạt QC. CẤM TUYỆT ĐỐI kích hoạt đồng thời (in parallel) cả 2 subagents trong cùng 1 tool call.
      3. **Kích hoạt `qc_auditor_subagent` CUỐI CÙNG** via `invoke_subagent` để kiểm duyệt độc lập chất lượng văn phong, rà soát chữ Hán, thẻ HTML trên các file đã dịch.
-   - **Chống tranh chấp File (File Lock & Single Writer Pattern):** Để tránh lỗi race condition khi nhiều Subagent hoạt động đồng thời:
-     * Subagents **KHÔNG được tự ý ghi đè trực tiếp** vào `summary.txt` hay `glossary.json` mà gửi dữ liệu báo cáo các thuật ngữ mới về cho Agent chính.
-     * **Agent chính BẮT BUỘC phải cập nhật ngay** các thuật ngữ mới vào `<dataset_dir>/glossary.json` và nhật ký vào `<dataset_dir>/summary.txt` ngay sau khi nhận phản hồi từ Subagent (trước khi kích hoạt Subagent cho chương tiếp theo), đảm bảo các chương sau luôn thừa kế bảng thuật ngữ đầy đủ và đồng nhất nhất.
+   - **Định nghĩa Subagent đủ quyền ghi file (enable_write_tools: true):**
+     * Khi gọi `define_subagent` cho `translator_subagent` và `qc_auditor_subagent`, Agent BẮT BUỘC phải đặt tham số `enable_write_tools: true` để Subagent được trang bị công cụ tạo và sửa file (`write_to_file`, `replace_file_content`, `run_command`).
+   - **🔴 CẤM TUYỆT ĐỐI XUẤT TIN NHẮN TRUNG GIAN TRONG HEADLESS CLI MODE:**
+     * Trong môi trường headless non-interactive CLI (`agy -p`), việc Agent phát ngôn tin nhắn trò chuyện (chat text) mà không gọi tool sẽ làm CLI hiểu là lượt đã kết thúc và tự động thoát tiến trình (`event: result`), gây ngắt đột ngột và giết chết subagent đang chạy ngầm.
+     * Do đó, sau khi gọi `invoke_subagent`, Agent BẮT BUỘC phải im lặng kết thúc lượt gọi công cụ (stop calling tools) để hệ thống tự động đón nhận phản hồi từ subagent khi hoàn thành.
+     * Agent phải thực thi tuần tự và liên tục qua toàn bộ các batch ([1..10], [11..20], ...) cho đến khi tạo đủ 100% file `content_vi.txt`. Chỉ được xuất bảng Báo Cáo Nghiệm Thu cuối cùng (kèm thẻ `<!-- GOAL_COMPLETE -->`) ở bước hoàn tất cuối cùng.
    - Hủy hoàn toàn Chat Session Context của subagent sau khi kết thúc batch/chương để tránh trôi ngữ cảnh, suy giảm chất lượng dịch thuật, và **chống tràn Context Window 100% ngay cả khi xử lý 1,000+ chương**.
 
 6. **🔴 ĐỘ ƯU TIÊN CAO NHẤT - CẤM TUYỆT ĐỐI SÓT CHỮ TRUNG QUỐC / HÁN TỰ, THẺ HTML & THẨM ĐỊNH QC VĂN PHONG:**

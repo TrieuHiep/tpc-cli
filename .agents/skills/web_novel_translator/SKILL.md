@@ -52,11 +52,13 @@ Khi người dùng yêu cầu dịch/biên tập truyện từ **Thư mục Loca
 
 ### B. Thứ Tự Tuần Tự Nghiêm Ngặt Trong Mỗi Batch/Chương:
 Antigravity **BẮT BUỘC** thực hiện quy trình Multi-Subagent theo đúng thứ tự tuần tự nghiêm ngặt:
-1. Khởi tạo `translator_subagent` (sử dụng System Prompt chuẩn sản xuất bên dưới) và `qc_auditor_subagent`.
+1. Khởi tạo `translator_subagent` và `qc_auditor_subagent` via `define_subagent` với tham số `enable_write_tools: true` (BẮT BUỘC để subagents có công cụ `write_to_file`, `replace_file_content`, `run_command` trực tiếp lưu/sửa file `content_vi.txt`).
 2. **Kích hoạt `translator_subagent` ĐẦU TIÊN** via `invoke_subagent` để dịch và lưu các file `content_vi.txt`.
+   - 🔴 **QUY TẮC HEADLESS CLI:** Tuyệt đối KHÔNG xuất tin nhắn trò chuyện (chat text) trung gian sau khi `invoke_subagent`. Hãy im lặng kết thúc lượt công cụ để CLI chờ nhận phản hồi từ subagent.
 3. **CHỜ `translator_subagent` HOÀN THÀNH 100%**.
-4. **Kích hoạt `qc_auditor_subagent` CUỐI CÙNG** via `invoke_subagent` để kiểm duyệt QC các chương vừa dịch.
-5. Cập nhật `glossary.json` và `summary.txt` từ kết quả trả về trước khi xử lý batch/chương tiếp theo.
+4. **Kích hoạt `qc_auditor_subagent` CUỐI CÙNG** via `invoke_subagent` để kiểm duyệt QC các chương vừa dịch (cũng không xuất tin nhắn trung gian).
+5. Cập nhật `glossary.json` và `summary.txt` từ kết quả trả về trước khi tiếp tục thực thi batch tiếp theo.
+6. Lặp lại liên tục qua toàn bộ các batch cho đến chương cuối cùng, và chỉ xuất bảng báo cáo nghiệm thu tổng kết kèm `<!-- GOAL_COMPLETE -->` sau khi toàn bộ file đã tồn tại trên đĩa.
 
 ---
 
