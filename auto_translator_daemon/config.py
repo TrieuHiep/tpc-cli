@@ -112,7 +112,15 @@ def get_agy_review_timeout_str(hours: float = REVIEW_TIMEOUT_HOURS) -> str:
 BOUNDARY_STRATEGY = "SPLIT"
 
 # Ngưỡng tỷ lệ ký tự tối thiểu giữa bản dịch tiếng Việt và bản gốc tiếng Trung (kiểm tra chống cắt gọt/tóm tắt)
-MIN_TRANSLATION_RATIO = 0.85
+# Để ngưỡng 0.9 an toàn để trừ hao trường hợp chương raw chứa nhiều rác tác giả (donate, xin hoa, dự thu) bị cắt bỏ
+MIN_TRANSLATION_RATIO = 0.9
+
+# Ngưỡng số từ tối thiểu cho mỗi chương dịch (kiểm tra chống tóm tắt cực đoan)
+MIN_TRANSLATION_WORDS = 800
+
+# Cấu hình Model & Reasoning Effort cho AGY CLI
+AGY_MODEL = _env.get("AGY_MODEL", "gemini-3.8-flash-medium")
+AGY_EFFORT = _env.get("AGY_EFFORT", "medium")
 
 # Số lần thử lại tối đa khi AGY hoặc mạng gặp sự cố
 MAX_RETRIES = 2

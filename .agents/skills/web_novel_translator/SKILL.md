@@ -16,12 +16,14 @@ Khi người dùng yêu cầu dịch/biên tập truyện từ **Thư mục Loca
 - [ ] **Bước 2: Dynamic Glossary Filtering & Context Injection**
   - Lọc 20-50 terms xuất hiện trong các chương của batch/chương hiện tại từ `[dataset_dir]/glossary.json`. Nạp bối cảnh tóm tắt các chương trước (`summary.txt`).
 - [ ] **Bước 3: Dịch thuật & Biên tập Mượt (Translator Subagent - Automated Spawning với DeepSeek Tone Steering & Commonsense Check)**
-  - Tự động spawn `Translator Subagent` áp dụng **Bộ lọc tính hợp lý đời thực & 4 Nguyên lý giải mã ngữ nghĩa sâu**.
+  - Tự động spawn `Translator Subagent` áp dụng **Bộ lọc tính hợp lý đời thực & 5 Nguyên lý dịch thuật sâu**.
+  - 🔴 **Anti-Abridgment Mandate:** Dịch toàn văn 100% chi tiết bám sát nội dung gốc (Full Verbatim Narrative Translation). CẤM TUYỆT ĐỐI tóm tắt, cấm lược dịch, cấm gộp đoạn hay cắt xén lời thoại/miêu tả. Tỷ lệ ký tự Vi/Zh bắt buộc $\ge 1.2$, số từ tiếng Việt phải tương đương raw Trung ($\ge 1.500$ từ/chương).
   - **Tự động xử lý & suy luận tiêu đề chương:** Nếu truyện gốc có tiêu đề thì dịch mượt; nếu raw khuyết tiêu đề (chỉ có `第X章` hoặc `无题`) thì bắt buộc **tự suy luận 1 tiêu đề ngắn gọn (3-8 từ)** phản ánh sự kiện chính trong chương.
   - Đối với batch nhiều chương (>= 10 chương), subagent đọc và ghi lần lượt từng file `chapters/[Chương]/content_vi.txt` tương ứng.
   - Trích xuất tự động `extracted_new_terms` (danh từ riêng mới) và tóm tắt diễn biến (`chapter_summary` hoặc `batch_summary`).
 - [ ] **Bước 4: QC Thẩm định & Làm sạch Hán tự & Thẻ HTML (QC Auditor Subagent - Automated Spawning)**
   - Kiểm duyệt độc lập theo từng batch/chương tương ứng.
+  - 🔴 **In-Flight Batch QC Gate:** Đo độ dài từng file, kiểm tra tỷ lệ Vi/Zh $\ge 1.2$ và số từ $\ge 1.000$ từ. Nếu phát hiện tóm tắt / cắt gọt, bắt buộc từ chối và yêu cầu translator dịch lại ngay lập tức.
   - Quét 100% không còn chữ Hán / rác convert / thẻ HTML.
 - [ ] **Bước 5: Commit Sản Phẩm & Reset Context Session (Chống tràn Memory / Context Window 1,000+ Chương)**
   - Ghi file kết quả dưới dạng **Văn bản thuần túy (Plain Text, KHÔNG CHỨA BẤT KỲ THẺ HTML NÀO NHƯ `<p>`, `</p>`)** trực tiếp vào `chapters/[Chương]/content_vi.txt`.
@@ -77,6 +79,9 @@ Khi cấu hình `translator_subagent` hoặc gửi prompt dịch thuật, **BẮ
    - **Bắt buộc dịch ra bản chất hành động thực tế:** Ăn giấm $\rightarrow$ Ghen tuông; Hương bánh trái $\rightarrow$ Nhân tài đắt giá / Đối tượng săn đón; Ăn đậu phụ $\rightarrow$ Sàm sỡ / Trêu ghẹo; Đào góc tường $\rightarrow$ Giật bồ / Cướp người; Ôm đùi $\rightarrow$ Dựa dẫm đại gia.
 4. **Dịch Theo Ý Nghĩa, Tự Do Cấu Trúc Câu (Sense-for-Sense Translation):**
    - Hoàn toàn thả tự do cấu trúc câu, tự do ngắt nghỉ, đảo ngữ pháp, viết lại câu văn để đạt độ mượt mà, trôi chảy và giàu chất văn học hiện đại.
+5. **Bảo Toàn Dung Lượng & Anti-Abridgment Mandate (CẤM TÓM TẮT TUYỆT ĐỐI):**
+   - Dịch toàn văn 100% bám sát tình tiết gốc (Full Verbatim Narrative Translation). Việc "biên tập mượt mà" TUYỆT ĐỐI KHÔNG ĐỒNG NGHĨA với "lược bỏ hay tóm tắt".
+   - CẤM TUYỆT ĐỐI tóm tắt diễn biến, cấm gộp đoạn tùy tiện, cấm bỏ sót lời thoại, miêu tả tâm lý hay bối cảnh. Ràng buộc định lượng: Tỷ lệ ký tự Vi/Zh bắt buộc $\ge 1.2$, số từ tiếng Việt phải đạt từ 1.500 – 3.500 từ/chương (tương đương số chữ Hán raw). Bất kỳ chương nào dưới 1.000 từ hoặc Vi/Zh < 1.0 đều là lỗi phế phẩm nghiêm trọng!
 
 ---
 

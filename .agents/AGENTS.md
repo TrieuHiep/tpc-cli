@@ -18,6 +18,7 @@ Khi làm việc trong workspace `truyen-online`, Antigravity và các subagent c
      * **Nguyên lý 2 (Bộ lọc tính hợp lý đời thực):** Luôn tự vấn trước khi hạ bút: Đặt vào bối cảnh xã hội, tâm lý nhân vật và đời thực, câu văn này có hợp lý và có nghĩa không? 👉 **Quy tắc vàng:** Nếu câu dịch nghe phi lý, kỳ quặc, vô nghĩa hoặc ngô nghê trong tiếng Việt (ví dụ: *"sinh viên tốt nghiệp đi ăn bánh trái"*, *"bị đóng cửa ăn canh"*, *"hệ thống hỏi có bao nhiêu tích phân"*...) $\rightarrow$ **100% ĐÓ LÀ BẪY TỪ ĐA NGHĨA / BẪY THÀNH NGỮ CONVERT, BẮT BUỘC PHẢI DỊCH THOÁT Ý THEO NGHĨA BÓNG VÀ HOÀN CẢNH THỰC TẾ!**
      * **Nguyên lý 3 (Giải mã ẩn dụ tiếng Trung):** Bắt buộc dịch ra bản chất hành động thực tế (*Ăn giấm $\rightarrow$ Ghen tuông; Hương bánh trái $\rightarrow$ Nhân tài đắt giá / Đối tượng săn đón; Ăn đậu phụ $\rightarrow$ Sàm sỡ / Trêu ghẹo; Đào góc tường $\rightarrow$ Giật bồ / Cướp người; Ôm đùi $\rightarrow$ Dựa dẫm đại gia*).
      * **Nguyên lý 4 (Dịch theo ý nghĩa, tự do cấu trúc câu):** Hoàn toàn thả tự do cấu trúc câu, tự do ngắt nghỉ, đảo ngữ pháp, viết lại câu văn để đạt độ mượt mà, trôi chảy và giàu chất văn học hiện đại.
+     * **Nguyên lý 5 (Bảo toàn dung lượng & Anti-Abridgment Mandate - CẤM TÓM TẮT):** Bản dịch là dịch văn học toàn văn 100% chi tiết bám sát cốt truyện (Full Verbatim Narrative Translation). Việc "biên tập mượt mà / tự do cấu trúc câu" ở Nguyên lý 4 TUYỆT ĐỐI KHÔNG ĐỒNG NGHĨA VỚI "tóm tắt, lược dịch hay cắt xén". CẤM TUYỆT ĐỐI tóm tắt diễn biến, cấm gộp đoạn tùy tiện, cấm bỏ sót lời thoại, miêu tả tâm lý hay bối cảnh. Ràng buộc định lượng: Tỷ lệ ký tự Vi/Zh bắt buộc $\ge 1.2$, số từ tiếng Việt phải đạt từ 1.500 – 3.500 từ/chương (tương đương số chữ Hán raw). Bất kỳ chương nào dưới 1.000 từ hoặc Vi/Zh < 1.0 đều bị coi là lỗi phế phẩm nghiêm trọng!
    - **VĂN PHONG TỰ NHIÊN, TRÔI CHẢY & HỖN HỢP CÓ KIỂM SOÁT:**
      * Kết hợp từ Hán Việt và cách diễn đạt thuần Việt hiện đại một cách có chủ đích: Không quá cứng (toàn Hán Việt), không quá mất chất (hiện đại hóa hết).
      * **Khu vực giữ Hán Việt (Ưu tiên cao):** Thuật ngữ hệ thống (cảnh giới, kỹ năng, pháp bảo, môn phái, tu vi, thần thức, đại đạo, kiếp nạn...), xưng hô tôn ti (bản vương, đạo hữu, sư tôn, công tử...), từ ngữ tạo khí thế cổ kính (*sát khí, thiên cơ, kỳ ngộ, phong tư*), thành ngữ/điển cố.
@@ -90,9 +91,10 @@ Khi làm việc trong workspace `truyen-online`, Antigravity và các subagent c
    - Hủy hoàn toàn Chat Session Context của subagent sau khi kết thúc batch/chương để tránh trôi ngữ cảnh, suy giảm chất lượng dịch thuật, và **chống tràn Context Window 100% ngay cả khi xử lý 1,000+ chương**.
 
 6. **🔴 ĐỘ ƯU TIÊN CAO NHẤT - CẤM TUYỆT ĐỐI SÓT CHỮ TRUNG QUỐC / HÁN TỰ, THẺ HTML & THẨM ĐỊNH QC VĂN PHONG:**
-   Khâu **QC Thẩm định** mang độ ưu tiên CAO NHẤT trong toàn bộ workflow dịch thuật. Trước khi ghi file dịch cuối cùng tại `data/translated/`, Agent BẮT BUỘC phải thực hiện bước kiểm duyệt QC khắt khe:
+   Khâu **QC Thẩm định** mang độ ưu tiên CAO NHẤT trong toàn bộ workflow dịch thuật. Trước khi ghi file dịch cuối cùng tại `data/translated/` hoặc nghiệm thu batch, Agent BẮT BUỘC phải thực hiện bước kiểm duyệt QC khắt khe:
    - Rà soát kỹ lưỡng và loại bỏ 100% bất kỳ chữ Hán / chữ Trung Quốc nào còn sót lại (kể cả dạng chú thích `TừHán (Nghĩa dịch)`).
    - **Đánh giá văn phong:** Đảm bảo bản dịch trôi chảy, tự nhiên, dễ hiểu, đọc không bị gượng gạo hay dính lỗi dịch word-by-word.
+   - **🔴 Kiểm tra bảo toàn dung lượng (Anti-Abridgment):** Bắt buộc đo độ dài từng file, đảm bảo tỷ lệ ký tự Vi/Zh $\ge 1.2$ và số từ $\ge 1.000$ từ/chương (đối với raw dài $\ge 1.000$ ký tự). Tuyệt đối từ chối nghiệm thu bất kỳ chương nào bị cắt gọt hay tóm tắt.
    - **Loại bỏ 100% mọi thẻ HTML (như `<p>`, `</p>`, `<br>`)** trong file kết quả cuối cùng.
    - File dịch xuất ra phải là 100% tiếng Việt thuần túy (Plain Text), mượt mà chuẩn văn học, có dòng đầu tiên là `Chương X: [Tiêu đề]` (tự suy luận nếu raw thiếu).
 

@@ -22,6 +22,8 @@ from new_story_translator_daemon.config import (
     MAX_RETRIES,
     DEFAULT_BATCH_SIZE,
     AGY_BIN,
+    AGY_MODEL,
+    AGY_EFFORT,
     ENABLE_FINAL_REVIEW,
     REVIEW_TIMEOUT_HOURS,
     get_agy_review_timeout_str,
@@ -135,9 +137,14 @@ class AGYRunner:
             "--dangerously-skip-permissions",
             "--print-timeout", self.timeout_str
         ]
+        if AGY_MODEL:
+            cmd.extend(["--model", AGY_MODEL])
+        if AGY_EFFORT:
+            cmd.extend(["--effort", AGY_EFFORT])
 
         print(f"\n🚀 [{story_id}] Bắt đầu chạy AGY CLI dịch mới:", flush=True)
         print(f"   - Tên truyện: {story_name}", flush=True)
+        print(f"   - Model: {AGY_MODEL or 'Default'} (Effort: {AGY_EFFORT or 'Default'})", flush=True)
         print(f"   - Số chương: {len(chapters_to_translate)} chương ({chapters_to_translate[0]} -> {chapters_to_translate[-1]})", flush=True)
         print(f"   - Kích thước batch: {self.batch_size} chương/session", flush=True)
         print(f"   - Project: {project_name}", flush=True)
@@ -361,6 +368,10 @@ class AGYRunner:
                             "--dangerously-skip-permissions",
                             "--print-timeout", self.timeout_str
                         ]
+                        if AGY_MODEL:
+                            resume_cmd.extend(["--model", AGY_MODEL])
+                        if AGY_EFFORT:
+                            resume_cmd.extend(["--effort", AGY_EFFORT])
 
                         try:
                             res_proc = subprocess.Popen(
@@ -489,6 +500,10 @@ class AGYRunner:
             "--dangerously-skip-permissions",
             "--print-timeout", self.review_timeout_str
         ]
+        if AGY_MODEL:
+            cmd.extend(["--model", AGY_MODEL])
+        if AGY_EFFORT:
+            cmd.extend(["--effort", AGY_EFFORT])
 
         print(f"\n🔍 [{story_id}] Bắt đầu chạy AGY CLI rà soát (Turn 2):", flush=True)
         print(f"   - Conversation ID: {conversation_id[:8]}...", flush=True)

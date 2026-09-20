@@ -6,13 +6,14 @@ Module hậu kiểm chất lượng (QC) bản dịch:
 """
 import re
 from typing import Tuple, Dict, Any, List
-from auto_translator_daemon.config import MIN_TRANSLATION_RATIO
+from auto_translator_daemon.config import MIN_TRANSLATION_RATIO, MIN_TRANSLATION_WORDS
 
 class QCValidator:
     """Kiểm duyệt chất lượng bản dịch độc lập trước khi upload lên Drive."""
 
-    def __init__(self, min_ratio: float = MIN_TRANSLATION_RATIO):
+    def __init__(self, min_ratio: float = MIN_TRANSLATION_RATIO, min_words: int = MIN_TRANSLATION_WORDS):
         self.min_ratio = min_ratio
+        self.min_words = min_words
         # Pattern phát hiện chữ Hán (CJK Unified Ideographs)
         self.hanzi_pattern = re.compile(r'[\u4e00-\u9fff]')
         # Pattern phát hiện thẻ HTML thường gặp
@@ -28,11 +29,13 @@ class QCValidator:
 
         raw_len = len(raw_clean)
         vi_len = len(vi_clean)
+        vi_words = len(vi_clean.split())
         ratio = vi_len / max(raw_len, 1)
 
         stats = {
             'raw_length': raw_len,
             'vi_length': vi_len,
+            'vi_words': vi_words,
             'length_ratio': round(ratio, 3)
         }
 
@@ -52,9 +55,13 @@ class QCValidator:
             sample = ", ".join(html_matches[:5])
             return False, f"Bản dịch chứa thẻ HTML không hợp lệ (Mẫu: '{sample}')", stats
 
-        # 4. Kiểm tra cắt gọt / tóm tắt (Anti-truncation)
+        # 4. Kiểm tra cắt gọt / tóm tắt theo tỷ lệ ký tự (Anti-truncation)
         if ratio < self.min_ratio:
             return False, f"Nội dung bị cắt gọt / tóm tắt: Tỉ lệ ký tự Vi/Zh = {ratio:.2f} < {self.min_ratio}", stats
+
+        # 5. Kiểm tra số lượng từ tối thiểu (chống tóm tắt cực đoan khi raw dài)
+        if raw_len >= 1000 and vi_words < self.min_words:
+            return False, f"Nội dung bị tóm tắt: Số từ tiếng Việt = {vi_words} < {self.min_words} từ", stats
 
         return True, "PASSED ✅", stats
 
