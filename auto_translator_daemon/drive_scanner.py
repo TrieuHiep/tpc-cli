@@ -113,13 +113,14 @@ class DriveScanner:
         web_queue = []
         current_count = 0
         processed_story_ids = set()
+        skipped_stories = []
 
         if not self.web_priority_mgr:
-            return web_queue, current_count, processed_story_ids
+            return web_queue, current_count, processed_story_ids, skipped_stories
 
         priority_stories = self.web_priority_mgr.priority_stories
         if not priority_stories:
-            return web_queue, current_count, processed_story_ids
+            return web_queue, current_count, processed_story_ids, skipped_stories
 
         print(f"\n🚀 [CHẶNG 1] Bắt đầu xử lý Fast-Path Web Priority ({len(priority_stories)} bộ truyện từ Web API)...")
 
@@ -192,7 +193,17 @@ class DriveScanner:
             # 3. Thẩm định mục lục zip từ xa qua RAM (Zero Disk Usage)
             inspected = chapter_inspector.inspect_story_remotely(s_info)
             if not inspected.get('is_valid', False):
-                print(f"  ⚠️ [{story_id}] [ƯU TIÊN WEB]: Bỏ qua: {inspected.get('reason')}")
+                reason = inspected.get('reason', 'Không hợp lệ')
+                if inspected.get('is_gap'):
+                    print(f"  ❌ [{story_id}] ⭐ [ƯU TIÊN WEB] [SKIP - NHẢY CÓC]: {reason}")
+                    skipped_stories.append({
+                        'source': source,
+                        'story_id': story_id,
+                        'reason': reason,
+                        'is_web_priority': True
+                    })
+                else:
+                    print(f"  ⚠️ [{story_id}] [ƯU TIÊN WEB]: Bỏ qua: {reason}")
                 continue
 
             new_chaps = inspected.get('new_chapters', [])
@@ -254,7 +265,7 @@ class DriveScanner:
                 break
 
         print(f"✅ Hoàn tất Chặng 1: {len(web_queue)} truyện ưu tiên được chọn, tích lũy {current_count}/{limit} chương.")
-        return web_queue, current_count, processed_story_ids
+        return web_queue, current_count, processed_story_ids, skipped_stories
 
     def scan_all_sources(
         self,

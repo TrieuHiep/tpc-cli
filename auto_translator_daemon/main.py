@@ -128,30 +128,33 @@ def main():
     web_queue = []
     current_count = 0
     processed_story_ids = set()
+    all_skipped_stories = []
 
     if target_story_ids:
         priority_targets = {sid: web_priority_mgr.get_story_info(sid) for sid in target_story_ids if web_priority_mgr.is_priority(sid)}
         if priority_targets:
             orig_stories = web_priority_mgr.priority_stories
             web_priority_mgr.priority_stories = priority_targets
-            web_queue, current_count, processed_story_ids = scanner.inspect_web_priority_stories(
+            web_queue, current_count, processed_story_ids, web_skipped = scanner.inspect_web_priority_stories(
                 inspector,
                 limit=args.chapters,
                 strategy=args.strategy,
                 max_per_story=max_per_story
             )
+            all_skipped_stories.extend(web_skipped)
             web_priority_mgr.priority_stories = orig_stories
     else:
         orig_stories = web_priority_mgr.priority_stories
         if excluded_story_ids:
             web_priority_mgr.priority_stories = {sid: info for sid, info in orig_stories.items() if sid not in excluded_story_ids}
 
-        web_queue, current_count, processed_story_ids = scanner.inspect_web_priority_stories(
+        web_queue, current_count, processed_story_ids, web_skipped = scanner.inspect_web_priority_stories(
             inspector,
             limit=args.chapters,
             strategy=args.strategy,
             max_per_story=max_per_story
         )
+        all_skipped_stories.extend(web_skipped)
         if excluded_story_ids:
             web_priority_mgr.priority_stories = orig_stories
 
@@ -184,17 +187,26 @@ def main():
             for src in candidate_sources:
                 candidate_sources[src] = [s for s in candidate_sources[src] if s['story_id'] in target_story_ids]
 
-        whitelist_queue = queue_mgr.build_lazy_queue(
+        whitelist_queue, wl_skipped = queue_mgr.build_lazy_queue(
             candidate_sources,
             inspector,
             current_count=current_count
         )
+        all_skipped_stories.extend(wl_skipped)
 
     # Tổng hợp hàng đợi cuối cùng:
     queue = web_queue + whitelist_queue
 
+    # In thông báo các truyện bị loại do nhảy cóc (nếu có)
+    if all_skipped_stories:
+        print(f"\n⚠️ ĐÃ LOẠI BỎ {len(all_skipped_stories)} BỘ TRUYỆN BỊ NHẢY CÓC / KHUYẾT CHƯƠNG:")
+        for s in all_skipped_stories:
+            badge_str = f" [{s['badge']}]" if s.get('badge') else ""
+            vip_str = " [ƯU TIÊN WEB]" if s.get('is_web_priority') else ""
+            print(f"  ❌ [{s['source']}]{badge_str}{vip_str} {s['story_id']}: {s['reason']}")
+
     if not queue:
-        print("\n☕ Không có chương mới nào cần dịch hôm nay (toàn bộ truyện đã dịch 100%). Kết thúc phiên.")
+        print("\n☕ Không có chương mới nào cần dịch hôm nay (toàn bộ truyện đã dịch 100% hoặc các truyện đều bị lỗi). Kết thúc phiên.")
         return
 
     # In danh sách hàng đợi đã chốt
@@ -211,9 +223,15 @@ def main():
         print("\n🔍 Chế độ --dry-run đang bật. Đã hoàn tất mô phỏng quét qua RAM (0 byte ghi xuống ổ cứng).")
         return
 
-    # Gửi thông báo bắt đầu ca dịch qua Telegram
+    # Gửi thông báo bắt đầu ca dịch qua Telegram (kèm danh sách truyện bị loại nếu có)
     total_planned_chaps = sum(len(item['chapters_to_translate']) for item in queue)
-    notifier.notify_session_start(queue, total_planned_chaps, args.chapters, args.sort_by)
+    notifier.notify_session_start(
+        queue,
+        total_planned_chaps,
+        args.chapters,
+        args.sort_by,
+        skipped_stories=all_skipped_stories
+    )
 
     # 4. Thực thi dịch thuật, hậu kiểm QC và đồng bộ Drive
     execution_results = []

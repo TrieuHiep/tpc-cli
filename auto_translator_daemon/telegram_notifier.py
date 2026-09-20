@@ -75,7 +75,14 @@ class TelegramNotifier:
         )
         self.send_message(msg)
 
-    def notify_session_start(self, queue: List[Dict[str, Any]], total_chapters: int, limit: int, sort_by: str):
+    def notify_session_start(
+        self,
+        queue: List[Dict[str, Any]],
+        total_chapters: int,
+        limit: int,
+        sort_by: str,
+        skipped_stories: Optional[List[Dict[str, Any]]] = None
+    ):
         """Thông báo khi ca dịch hàng ngày bắt đầu."""
         if not self.is_configured():
             return
@@ -88,12 +95,32 @@ class TelegramNotifier:
             tag_vip = " ⭐ <b>[ƯU TIÊN WEB]</b>" if item.get('is_web_priority') else ""
             story_lines.append(f"  <b>{idx}.</b> [{item['source']}] <code>{item['story_id']}</code>: {len(chaps)} chaps ({format_chapter_ranges(chaps, arrow='➔')}{total_str}){tag_vip}")
 
+        skipped_section = ""
+        if skipped_stories:
+            skip_lines = []
+            for item in skipped_stories[:6]:
+                src = item.get('source', '')
+                sid = item.get('story_id', '')
+                reason = html.escape(str(item.get('reason', '')))
+                badge = f" {item.get('badge')}" if item.get('badge') else ""
+                vip = " ⭐ [ƯU TIÊN WEB]" if item.get('is_web_priority') else ""
+                skip_lines.append(f"  • [{src}]{badge} <code>{sid}</code>{vip}: {reason}")
+            if len(skipped_stories) > 6:
+                skip_lines.append(f"  • <i>... và {len(skipped_stories) - 6} truyện khác</i>")
+            skipped_section = (
+                f"\n\n⚠️ <b>[CẢNH BÁO: LOẠI BỎ DO NHẢY CÓC]</b>\n"
+                f"Đã loại bỏ {len(skipped_stories)} bộ truyện bị khuyết/đứt mạch:\n"
+                + "\n".join(skip_lines) + "\n"
+                f"ℹ️ <i>Đã tự động lấy các truyện kế tiếp trong Whitelist để bù đủ quota!</i>"
+            )
+
         msg = (
             f"🚀 <b>[BẮT ĐẦU CA DỊCH TỰ ĐỘNG]</b>\n\n"
             f"📊 <b>Tổng số chương dự kiến:</b> {total_chapters}/{limit} chaps\n"
             f"⚙️ <b>Tiêu chí sắp xếp:</b> <code>{sort_by}</code>\n"
             f"📋 <b>Danh sách hàng đợi ({len(queue)} truyện):</b>\n"
             + "\n".join(story_lines)
+            + skipped_section
         )
         self.send_message(msg)
 

@@ -2,7 +2,7 @@
 Module quản lý hàng đợi Lazy Queue Builder:
 Quét cuốn chiếu từng truyện một qua RAM, đủ trần 300 chương thì DỪNG LẬP TỨC (Early Stop).
 """
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Tuple
 from auto_translator_daemon.config import DAILY_CHAPTER_LIMIT, BOUNDARY_STRATEGY, SOURCE_PRIORITY, MAX_CHAPTERS_PER_STORY
 
 class QueueManager:
@@ -18,15 +18,18 @@ class QueueManager:
         candidate_stories_by_source: Dict[str, List[Dict[str, Any]]],
         chapter_inspector,
         current_count: int = 0
-    ) -> List[Dict[str, Any]]:
+    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
         """
         Quét cuốn chiếu các truyện Whitelist theo thứ tự nguồn và sắp xếp:
         - Nhận current_count từ Chặng 1 (Web Priority) để tiếp nối hạn mức.
         - Kiểm tra mục lục zip từ xa qua RAM cho từng truyện.
+        - Tự động loại bỏ các truyện bị nhảy cóc / khuyết chương và tiếp tục quét bù quota.
         - Tìm ra các chương tồn đọng chưa dịch (raw_count > trans_count).
         - Cộng dồn đến khi chạm ngưỡng limit chương thì DỪNG HẲN TIẾN TRÌNH QUÉT (các truyện sau = 0 request).
+        Trả về: (queue, skipped_stories)
         """
         queue = []
+        skipped_stories = []
         remaining_quota = self.limit - current_count
 
         print(f"\n📋 Đang xây dựng hàng đợi Whitelist (Hạn mức còn lại: {remaining_quota}/{self.limit} chaps, Chế độ: {self.strategy})...")
@@ -69,7 +72,20 @@ class QueueManager:
             inspected = chapter_inspector.inspect_story_remotely(s_info)
 
             if not inspected.get('is_valid', False):
-                print(f"  ⚠️ [{story_id}]{badge_str}: Bỏ qua: {inspected.get('reason')}")
+                reason = inspected.get('reason', 'Không hợp lệ')
+                if inspected.get('is_gap'):
+                    print(f"  ❌ [{story_id}]{badge_str} [SKIP - NHẢY CÓC]: {reason}")
+                    title = sheet_meta.get('title') or story_id
+                    skipped_stories.append({
+                        'source': source,
+                        'story_id': story_id,
+                        'title': title,
+                        'badge': badge,
+                        'reason': reason,
+                        'is_web_priority': False
+                    })
+                else:
+                    print(f"  ⚠️ [{story_id}]{badge_str}: Bỏ qua: {reason}")
                 continue
 
             new_chaps = inspected.get('new_chapters', [])
@@ -132,4 +148,4 @@ class QueueManager:
                 break
 
         print(f"\n✅ Hoàn tất Chặng 2 (Whitelist): {len(queue)} bộ truyện được chọn thêm (Tích lũy: {current_count}/{self.limit} chương).")
-        return queue
+        return queue, skipped_stories

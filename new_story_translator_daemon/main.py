@@ -122,11 +122,18 @@ def main():
         for src in candidate_sources:
             candidate_sources[src] = [s for s in candidate_sources[src] if s['story_id'] in target_story_ids]
 
-    # 3. Lập hàng đợi 10 truyện mới (lấy 100 chương đầu)
-    queue = queue_mgr.build_queue(candidate_sources, remote_inspector, sort_by=args.sort_by)
+    # 3. Lập hàng đợi 10 truyện mới (lấy 100 chương đầu, tự động loại bỏ truyện nhảy cóc)
+    queue, skipped_stories = queue_mgr.build_queue(candidate_sources, remote_inspector, sort_by=args.sort_by)
+
+    # In danh sách các truyện mới bị loại do nhảy cóc (nếu có)
+    if skipped_stories:
+        print(f"\n⚠️ ĐÃ LOẠI BỎ {len(skipped_stories)} BỘ TRUYỆN MỚI BỊ NHẢY CÓC / KHUYẾT CHƯƠNG:")
+        for s in skipped_stories:
+            badge_str = f" [{s['badge']}]" if s.get('badge') else ""
+            print(f"  ❌ [{s['source']}]{badge_str} {s['story_id']}: {s['reason']}")
 
     if not queue:
-        print("\n☕ Không tìm thấy truyện mới nào chưa dịch trên Google Drive (hoặc toàn bộ truyện mới chưa nằm trong Whitelist). Kết thúc.")
+        print("\n☕ Không tìm thấy truyện mới nào hợp lệ chưa dịch trên Google Drive (hoặc toàn bộ truyện mới đều bị lỗi khuyết chương / chưa nằm trong Whitelist). Kết thúc.")
         return
 
     # In danh sách hàng đợi
@@ -150,8 +157,14 @@ def main():
         print("\n🔍 Chế độ --dry-run đang bật. Đã hoàn tất kiểm tra mục lục qua RAM (0 byte ghi xuống ổ cứng).")
         return
 
-    # Gửi thông báo Telegram bắt đầu phiên dịch mới
-    notifier.notify_session_start(queue, args.workers, sort_by=args.sort_by, chapters_per_story=args.chapters)
+    # Gửi thông báo Telegram bắt đầu phiên dịch mới (kèm danh sách truyện bị loại nếu có)
+    notifier.notify_session_start(
+        queue,
+        args.workers,
+        sort_by=args.sort_by,
+        chapters_per_story=args.chapters,
+        skipped_stories=skipped_stories
+    )
 
     # 4. Thực thi dịch song song qua ThreadPoolExecutor
     execution_results = []

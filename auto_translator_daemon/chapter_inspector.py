@@ -105,6 +105,58 @@ class ChapterInspector:
         new_chapters = [num for num in raw_nums if num not in trans_nums]
         new_chapters.sort()
 
+        if not new_chapters:
+            return {
+                'is_valid': True,
+                'story_id': story_id,
+                'story_info': story_info,
+                'raw_chapters_count': len(raw_nums),
+                'translated_chapters_count': len(trans_nums),
+                'new_chapters': [],
+                'first_new': None,
+                'last_new': None
+            }
+
+        # 5. Kiểm tra tính toàn vẹn và liên tục (Data Integrity & Sequential Continuity)
+        first_new = new_chapters[0]
+
+        # 5.1. Nối tiếp chính xác với bản dịch cũ (Continuity with existing translation)
+        if trans_nums:
+            max_trans = max(trans_nums)
+            if first_new != max_trans + 1:
+                if first_new > max_trans + 1:
+                    gap_msg = f"Đứt mạch dịch: Đã dịch đến chương {max_trans}, nhưng raw tiếp theo là chương {first_new} (khuyết chương {max_trans + 1}➔{first_new - 1})"
+                else:
+                    gap_msg = f"Bản dịch cũ bị khuyết: Đã dịch đến chương {max_trans}, nhưng phát hiện chương {first_new} chưa dịch (lỗ hổng dữ liệu)"
+                return {
+                    'is_valid': False,
+                    'is_gap': True,
+                    'reason': gap_msg
+                }
+        else:
+            if first_new != 1:
+                return {
+                    'is_valid': False,
+                    'is_gap': True,
+                    'reason': f"Chương raw bắt đầu từ chương {first_new}, không phải từ chương 1"
+                }
+
+        # 5.2. Kiểm tra tính liên tục của dải chương mới (No gaps in new chapters)
+        expected_new = list(range(first_new, first_new + len(new_chapters)))
+        if new_chapters != expected_new:
+            for act, exp in zip(new_chapters, expected_new):
+                if act != exp:
+                    return {
+                        'is_valid': False,
+                        'is_gap': True,
+                        'reason': f"Dải chương mới bị nhảy cóc: Mong đợi chương {exp} nhưng lại thấy chương {act}"
+                    }
+            return {
+                'is_valid': False,
+                'is_gap': True,
+                'reason': "Dải chương mới bị khuyết hoặc nhảy cóc"
+            }
+
         return {
             'is_valid': True,
             'story_id': story_id,
@@ -112,8 +164,8 @@ class ChapterInspector:
             'raw_chapters_count': len(raw_nums),
             'translated_chapters_count': len(trans_nums),
             'new_chapters': new_chapters,
-            'first_new': new_chapters[0] if new_chapters else None,
-            'last_new': new_chapters[-1] if new_chapters else None
+            'first_new': first_new,
+            'last_new': new_chapters[-1]
         }
 
     def download_story_to_dir(self, story_info: Dict[str, Any], local_story_dir: Path) -> bool:

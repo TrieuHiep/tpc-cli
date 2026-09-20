@@ -3,7 +3,7 @@ Module quản lý hàng đợi dịch mới (Parallel Queue Manager):
 Quét cuốn chiếu các ứng viên truyện mới qua RAM, lọc ra đúng 100 chương đầu tiên (chương 1 -> 100).
 Gom đủ 10 bộ truyện thì dừng quét (Early Stop) để kích hoạt xử lý song song.
 """
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 from new_story_translator_daemon.config import (
     TARGET_CHAPTERS_PER_STORY,
     TARGET_STORY_QUEUE_SIZE,
@@ -28,15 +28,18 @@ class ParallelQueueManager:
         candidate_stories_by_source: Dict[str, List[Dict[str, Any]]],
         remote_inspector: RemoteZipInspector,
         sort_by: str = "recent"
-    ) -> List[Dict[str, Any]]:
+    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
         """
         Duyệt cuốn chiếu các truyện mới, đọc Central Directory của chapters.zip qua RAM,
         chọn ra danh sách các chương từ 1 đến min(target_chapters, max_chap).
+        Tự động loại bỏ các truyện bị nhảy cóc / khuyết chương và tiếp tục quét bù quota.
         Ưu tiên theo Priority của từng tab (ví dụ: tab 'gay' ưu tiên 1 được xét trước),
         sau đó theo sort_by (recent/oldest) và SOURCE_PRIORITY.
         Đủ self.queue_size truyện thì dừng ngay lập tức (Early Stop).
+        Trả về: (queue, skipped_stories)
         """
         queue = []
+        skipped_stories = []
         print(f"\n📋 Đang xây dựng hàng đợi truyện mới (Mục tiêu: {self.queue_size} truyện, mỗi truyện tối đa {self.target_chapters} chaps)...")
 
         # 1. Gom toàn bộ ứng viên từ các nguồn
@@ -88,10 +91,49 @@ class ParallelQueueManager:
                 print(f"  ⚠️ [{story_id}]{badge_str}: chapters.zip rỗng hoặc không tìm thấy content.txt. Bỏ qua.")
                 continue
 
-            # Lấy các chương từ 1 đến self.target_chapters (ví dụ 1..100)
+            # Kiểm tra tính toàn vẹn (Data Integrity & Sequentiality):
+            # 1. Bắt buộc raw phải bắt đầu từ chương 1
+            if raw_nums[0] != 1:
+                gap_reason = f"Chương raw bắt đầu từ chương {raw_nums[0]}, không phải từ chương 1"
+                print(f"  ❌ [{story_id}]{badge_str} [SKIP - NHẢY CÓC]: {gap_reason}")
+                title = sheet_meta.get('title') or story_id
+                skipped_stories.append({
+                    'source': source,
+                    'story_id': story_id,
+                    'title': title,
+                    'badge': badge,
+                    'reason': gap_reason
+                })
+                continue
+
+            # 2. Lấy các chương từ 1 đến self.target_chapters (ví dụ 1..100)
             selected_chaps = [c for c in raw_nums if c <= self.target_chapters]
             if not selected_chaps:
                 selected_chaps = raw_nums[:self.target_chapters]
+
+            # 3. Kiểm tra tính liên tục 100% không đứt đoạn (1 -> len(selected_chaps))
+            expected_chaps = list(range(1, len(selected_chaps) + 1))
+            if selected_chaps != expected_chaps:
+                first_missing = None
+                for act, exp in zip(selected_chaps, expected_chaps):
+                    if act != exp:
+                        first_missing = (exp, act)
+                        break
+                if first_missing:
+                    gap_reason = f"Bị khuyết chương: Mong đợi chương {first_missing[0]} nhưng lại thấy chương {first_missing[1]} (nhảy cóc)"
+                else:
+                    gap_reason = "Dải chương raw bị khuyết hoặc nhảy cóc"
+
+                print(f"  ❌ [{story_id}]{badge_str} [SKIP - NHẢY CÓC]: {gap_reason}")
+                title = sheet_meta.get('title') or story_id
+                skipped_stories.append({
+                    'source': source,
+                    'story_id': story_id,
+                    'title': title,
+                    'badge': badge,
+                    'reason': gap_reason
+                })
+                continue
 
             print(f"  ✨ [{story_id}]{badge_str} (P{priority}): Phát hiện {len(raw_nums)} chương raw -> Chọn {len(selected_chaps)} chương đầu ({format_chapter_ranges(selected_chaps, arrow='➔')})")
 
@@ -107,4 +149,4 @@ class ParallelQueueManager:
                 'tab_name': sheet_meta.get('tab_name', '')
             })
 
-        return queue
+        return queue, skipped_stories
