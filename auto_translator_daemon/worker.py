@@ -137,6 +137,7 @@ def process_single_resume_story(
     Xử lý trọn gói 1 bộ truyện dịch tiếp (an toàn chạy trong luồng song song).
     """
     story_id = item['story_id']
+    source = item.get('source', '')
     chaps = item['chapters_to_translate']
     temp_story_dir = TEMP_RESUME_DIR / story_id
     story_start = datetime.now()
