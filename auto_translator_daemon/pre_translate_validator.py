@@ -31,6 +31,10 @@ from auto_translator_daemon.config import (
     LOGS_DIR,
     format_chapter_ranges
 )
+from auto_translator_daemon.prompt_templates import (
+    DEFAULT_PRE_TRANSLATE_PROMPT_TEMPLATE,
+    build_pre_translate_prompt
+)
 
 class PreTranslateValidator:
     """Thẩm định ngữ nghĩa dữ liệu truyện bằng AGY CLI trước khi cấp phép dịch."""
@@ -43,61 +47,16 @@ class PreTranslateValidator:
         self,
         story_dir: Path,
         chapters: List[int],
-        story_info: Dict[str, Any]
+        story_info: Dict[str, Any],
+        template: str = DEFAULT_PRE_TRANSLATE_PROMPT_TEMPLATE
     ) -> str:
         """Xây dựng prompt chỉ dẫn AGY CLI tự đọc file và thẩm định ngữ nghĩa."""
-        story_id = story_dir.name
-        start_chap = chapters[0]
-        end_chap = chapters[-1]
-        prev_chap = start_chap - 1 if start_chap > 1 else None
-
-        inspected_meta = story_info.get('inspected_meta') or {}
-        raw_total = inspected_meta.get('raw_chapters_count', 'Không rõ')
-        prev_chap_str = f"Chương đã dịch liền trước: Chương {prev_chap}" if prev_chap else "Đây là dải chương đầu tiên (chưa có chương dịch liền trước)"
-
-        prompt = f"""Bạn là Chuyên gia Thẩm định Ngữ nghĩa Dữ liệu Truyện Tiếng Trung & Tiếng Việt.
-Thư mục làm việc của bộ truyện: `{story_dir.resolve()}`.
-
-THÔNG TIN ĐỢT DỊCH NÀY:
-- Mã truyện: `{story_id}`
-- Dải chương sắp dịch: Từ Chương {start_chap} đến Chương {end_chap} (Tổng {len(chapters)} chương: {format_chapter_ranges(chapters)})
-- {prev_chap_str}
-- Tổng số chương raw của bộ truyện: {raw_total} chương
-
-NHIỆM VỤ CỦA BẠN:
-Hãy sử dụng công cụ view_file để tự mở và đọc các file cần thiết trong thư mục:
-1. Đọc file `summary.txt` (tóm tắt cốt truyện, nhân vật chính, bối cảnh) và `checkpoints.json` (nếu có).
-2. {'Đọc đoạn kết của chương vừa dịch liền trước: `chapters/' + str(prev_chap) + '/content_vi.txt` hoặc `chapters/chap_' + str(prev_chap) + '/content_vi.txt`' if prev_chap else 'Kiểm tra mở đầu chương 1 xem có khớp với bối cảnh trong summary.txt không'}.
-3. Đọc mở đầu chương chuẩn bị dịch: `chapters/{start_chap}/content.txt` hoặc `chapters/chap_{start_chap}/content.txt`.
-4. Đọc lướt qua một số chương trong dải {start_chap}..{end_chap} để kiểm tra tính độc lập của từng chương.
-5. Đọc đoạn kết của chương cuối dải: `chapters/{end_chap}/content.txt` hoặc `chapters/chap_{end_chap}/content.txt`.
-
-HÃY ĐÁNH GIÁ NGHIÊM NGẶT 4 TIÊU CHÍ SAU:
-1. ĐÚNG BỘ TRUYỆN: Các chương raw ({start_chap}..{end_chap}) có cùng nhân vật chính, môn phái, thế giới quan với mô tả trong `summary.txt` không? Có dấu hiệu bị nguồn cào nhầm link sang một truyện hoàn toàn khác không?
-2. MẠCH TRUYỆN LIỀN MẠCH: Diễn biến mở đầu chương {start_chap} có tiếp nối hợp lý với kết thúc của chương {prev_chap if prev_chap else 1} không? Có bị đứt gãy cốt truyện vô lý không?
-3. KHÔNG TRÙNG LẶP NỘI DUNG: Các chương trong dải {start_chap}..{end_chap} có bị cào lặp lại nội dung của nhau hoặc lặp với chương cũ không?
-4. ĐẠI KẾT CỤC: Chương {end_chap} có phải là hồi kết toàn văn của bộ truyện không? (Kiểm tra tiêu đề và đoạn kết có chứa từ khóa hoàn thành như: 大结局, 全书完, 完结, Hoàn...).
-
-QUY ĐỊNH BẮT BUỘC VỀ 'report_brief':
-- Viết bằng tiếng Việt, dung lượng vừa phải (từ 2 đến 4 câu).
-- KHÔNG ĐƯỢC viết cụt lủn (như 'Dữ liệu ok' hay 'Lỗi lặp') và KHÔNG ĐƯỢC viết quá dài dòng lan man.
-- Phải nêu cụ thể bằng chứng: tên nhân vật chính, số chương bị lỗi nếu có, tình huống cụ thể để Admin có thể FORWARD NGUYÊN VĂN tin nhắn này cho ĐỘI CRAWLER sửa nguồn!
-
-KẾT QUẢ ĐẦU RA:
-BẮT BUỘC tạo hoặc ghi đè file `{story_dir.resolve() / "pre_check_result.json"}` với nội dung DUY NHẤT là một khối JSON hợp lệ theo đúng cấu trúc sau:
-```json
-{{
-  "allowed_to_translate": true,
-  "is_complete": false,
-  "report_brief": "Mô tả chi tiết và cụ thể tình trạng truyện theo hướng dẫn ở trên..."
-}}
-```
-- Nếu phát hiện nhầm truyện, đứt mạch hoặc lặp chương -> Đặt `allowed_to_translate: false`.
-- Nếu dữ liệu chuẩn xác, mạch truyện liền mạch -> Đặt `allowed_to_translate: true`.
-- Nếu chương {end_chap} là kết thúc toàn văn truyện -> Đặt `is_complete: true`, ngược lại đặt `false`.
-
-Sau khi ghi file `pre_check_result.json`, bạn hãy kết thúc lượt làm việc ngay."""
-        return prompt
+        return build_pre_translate_prompt(
+            story_dir=story_dir,
+            chapters=chapters,
+            story_info=story_info,
+            template=template
+        )
 
     def validate_story(
         self,

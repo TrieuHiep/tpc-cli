@@ -119,11 +119,13 @@ def process_single_new_story(
     temp_story_dir = TEMP_NEW_DIR / story_id
     story_start = datetime.now()
 
+    source = item['source']
+    folder_id = (item.get('story_info') or {}).get('story_folder_id')
     badge = item.get('badge') or (item.get('sheet_meta') or {}).get('badge') or ""
     badge_str = f" {badge}" if badge else ""
     title = (item.get('sheet_meta') or {}).get('title') or story_id
     print("\n" + "=" * 60)
-    print(f"▶️ BẮT ĐẦU DỊCH MỚI: [{item['source']}]{badge_str} {story_id} - {title} ({len(chaps)} chương: {format_chapter_ranges(chaps)})")
+    print(f"▶️ BẮT ĐẦU DỊCH MỚI: [{source}]{badge_str} {story_id} - {title} ({len(chaps)} chương: {format_chapter_ranges(chaps)})")
     print("=" * 60)
 
     # 1. Tải chapters.zip về thư mục tạm với thread-safe token
@@ -137,7 +139,10 @@ def process_single_new_story(
 
     if not download_ok:
         print(f"❌ [{story_id}] Tải dữ liệu về thư mục tạm thất bại!")
-        notifier.notify_story_failed(story_id, len(chaps), "Lỗi tải chapters.zip từ Google Drive")
+        notifier.notify_story_failed(
+            story_id, len(chaps), "Lỗi tải chapters.zip từ Google Drive",
+            source=source, title=title, folder_id=folder_id
+        )
         shutil.rmtree(temp_story_dir, ignore_errors=True)
         return {
             'story_id': story_id,
@@ -148,10 +153,18 @@ def process_single_new_story(
             'duration': '0s'
         }
 
+    # Đọc tên truyện tiếng Việt từ info.json (nếu có)
+    ws_story_name = agy_runner.prepare_local_workspace(temp_story_dir)
+    if ws_story_name and ws_story_name != story_id:
+        title = ws_story_name
+
     # 2. Chạy AGY CLI
     success = agy_runner.run_translation(temp_story_dir, chaps)
     if not success:
-        notifier.notify_story_failed(story_id, len(chaps), "AGY CLI kết thúc thất bại hoặc timeout")
+        notifier.notify_story_failed(
+            story_id, len(chaps), "AGY CLI kết thúc thất bại hoặc timeout",
+            source=source, title=title, folder_id=folder_id
+        )
         shutil.rmtree(temp_story_dir, ignore_errors=True)
         return {
             'story_id': story_id,
@@ -178,7 +191,10 @@ def process_single_new_story(
             len(chaps),
             f"Không đạt kiểm định QC ({len(failed_chaps)} chương lỗi)",
             isolated_path=f"storage/temp_failed/{story_id}",
-            failed_details=failed_chaps
+            failed_details=failed_chaps,
+            source=source,
+            title=title,
+            folder_id=folder_id
         )
         return {
             'story_id': story_id,
@@ -199,12 +215,18 @@ def process_single_new_story(
     if no_upload:
         print(f"\n⚠️ [{story_id}] CỜ --no-upload ĐANG BẬT: Bỏ qua upload Drive theo yêu cầu thử nghiệm.")
         sync_status_str = "SKIPPED (--no-upload)"
-        notifier.notify_story_success(story_id, len(chaps), chaps_range_label, story_duration_str, uploaded=False, total_raw=raw_total)
+        notifier.notify_story_success(
+            story_id, len(chaps), chaps_range_label, story_duration_str,
+            uploaded=False, total_raw=raw_total, source=source, title=title, folder_id=folder_id
+        )
     else:
         sync_success = syncer.sync_story(item['story_info'], temp_story_dir, chaps)
         sync_status_str = "SUCCESS ✅" if sync_success else "FAILED ❌"
         if sync_success:
-            notifier.notify_story_success(story_id, len(chaps), chaps_range_label, story_duration_str, uploaded=True, total_raw=raw_total)
+            notifier.notify_story_success(
+                story_id, len(chaps), chaps_range_label, story_duration_str,
+                uploaded=True, total_raw=raw_total, source=source, title=title, folder_id=folder_id
+            )
 
     # 5. Dọn dẹp thư mục tạm giải phóng ổ cứng
     print(f"🧹 [{story_id}] Đang giải phóng bộ nhớ đĩa ({temp_story_dir})...")

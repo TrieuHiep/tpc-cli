@@ -3,7 +3,7 @@ Prompt templates module for Auto Translator Daemon.
 Nơi quản lý tập trung toàn bộ mẫu câu lệnh prompt gửi cho AGY CLI.
 """
 from pathlib import Path
-from typing import List
+from typing import List, Dict, Any
 
 # Mẫu prompt chuẩn cho AGY CLI sử dụng /goal và skill /dich_truyen_web
 DEFAULT_GOAL_PROMPT_TEMPLATE = (
@@ -131,6 +131,91 @@ def build_review_prompt(
 
     return template.format(
         chapters_str=chapters_str
+    )
+
+
+# Mẫu prompt chuẩn cho AGY CLI tiền thẩm định ngữ nghĩa (Pre-Translate Sanity Check)
+DEFAULT_PRE_TRANSLATE_PROMPT_TEMPLATE = (
+    "Bạn là Chuyên gia Thẩm định Ngữ nghĩa Dữ liệu Truyện Tiếng Trung & Tiếng Việt.\n"
+    "Thư mục làm việc của bộ truyện: `{story_dir}`.\n\n"
+    "THÔNG TIN ĐỢT DỊCH NÀY:\n"
+    "- Mã truyện: `{story_id}`\n"
+    "- Dải chương sắp dịch: Từ Chương {start_chap} đến Chương {end_chap} (Tổng {num_chapters} chương: {chapters_range})\n"
+    "- {prev_chap_str}\n"
+    "- Tổng số chương raw của bộ truyện: {raw_total} chương\n\n"
+    "NHIỆM VỤ CỦA BẠN:\n"
+    "Hãy đọc skill /dich_truyen_web , sử dụng công cụ view_file để tự mở và đọc các file cần thiết trong thư mục:\n"
+    "1. Đọc file `summary.txt` (tóm tắt cốt truyện, nhân vật chính, bối cảnh) và `checkpoints.json` (nếu có).\n"
+    "2. {prev_chap_task}\n"
+    "3. Đọc mở đầu chương chuẩn bị dịch: `chapters/{start_chap}/content.txt` hoặc `chapters/chap_{start_chap}/content.txt`.\n"
+    "4. Đọc lướt qua một số chương trong dải {start_chap}..{end_chap} để kiểm tra tính độc lập của từng chương.\n"
+    "5. Đọc đoạn kết của chương cuối dải: `chapters/{end_chap}/content.txt` hoặc `chapters/chap_{end_chap}/content.txt`.\n\n"
+    "HÃY ĐÁNH GIÁ NGHIÊM NGẶT 4 TIÊU CHÍ SAU:\n"
+    "1. ĐÚNG BỘ TRUYỆN: Các chương raw ({start_chap}..{end_chap}) có cùng nhân vật chính, môn phái, thế giới quan với mô tả trong `summary.txt` không? Có dấu hiệu bị nguồn cào nhầm link sang một truyện hoàn toàn khác không?\n"
+    "2. MẠCH TRUYỆN LIỀN MẠCH: Diễn biến mở đầu chương {start_chap} có tiếp nối hợp lý với kết thúc của chương {prev_chap_num} không? Có bị đứt gãy cốt truyện vô lý không?\n"
+    "3. KHÔNG TRÙNG LẶP NỘI DUNG: Các chương trong dải {start_chap}..{end_chap} có bị cào lặp lại nội dung của nhau hoặc lặp với chương cũ không?\n"
+    "4. ĐẠI KẾT CỤC: Chương {end_chap} có phải là hồi kết toàn văn của bộ truyện không? (Kiểm tra tiêu đề và đoạn kết có chứa từ khóa hoàn thành như: 大结局, 全书完, 完结, Hoàn...).\n\n"
+    "QUY ĐỊNH BẮT BUỘC VỀ 'report_brief':\n"
+    "- Viết bằng tiếng Việt, dung lượng vừa phải (từ 2 đến 4 câu).\n"
+    "- KHÔNG ĐƯỢC viết cụt lủn (như 'Dữ liệu ok' hay 'Lỗi lặp') và KHÔNG ĐƯỢC viết quá dài dòng lan man.\n"
+    "- Phải nêu cụ thể bằng chứng: tên nhân vật chính, số chương bị lỗi nếu có, tình huống cụ thể để Admin có thể FORWARD NGUYÊN VĂN tin nhắn này cho ĐỘI CRAWLER sửa nguồn!\n\n"
+    "KẾT QUẢ ĐẦU RA:\n"
+    "BẮT BUỘC tạo hoặc ghi đè file `{result_file}` với nội dung DUY NHẤT là một khối JSON hợp lệ theo đúng cấu trúc sau:\n"
+    "```json\n"
+    "{{\n"
+    '  "allowed_to_translate": true,\n'
+    '  "is_complete": false,\n'
+    '  "report_brief": "Mô tả chi tiết và cụ thể tình trạng truyện theo hướng dẫn ở trên..."\n'
+    "}}\n"
+    "```\n"
+    "- Nếu phát hiện nhầm truyện, đứt mạch hoặc lặp chương -> Đặt `allowed_to_translate: false`.\n"
+    "- Nếu dữ liệu chuẩn xác, mạch truyện liền mạch -> Đặt `allowed_to_translate: true`.\n"
+    "- Nếu chương {end_chap} là kết thúc toàn văn truyện -> Đặt `is_complete: true`, ngược lại đặt `false`.\n\n"
+    "Sau khi ghi file `pre_check_result.json`, bạn hãy kết thúc lượt làm việc ngay."
+)
+
+
+def build_pre_translate_prompt(
+    story_dir: Path,
+    chapters: List[int],
+    story_info: Dict[str, Any],
+    template: str = DEFAULT_PRE_TRANSLATE_PROMPT_TEMPLATE
+) -> str:
+    """
+    Tạo chuỗi prompt tiền thẩm định ngữ nghĩa cho AGY CLI.
+    """
+    from auto_translator_daemon.config import format_chapter_ranges
+    story_id = story_dir.name
+    start_chap = chapters[0]
+    end_chap = chapters[-1]
+    prev_chap = start_chap - 1 if start_chap > 1 else None
+
+    inspected_meta = story_info.get('inspected_meta') or {}
+    raw_total = inspected_meta.get('raw_chapters_count', 'Không rõ')
+    prev_chap_str = (
+        f"Chương đã dịch liền trước: Chương {prev_chap}"
+        if prev_chap
+        else "Đây là dải chương đầu tiên (chưa có chương dịch liền trước)"
+    )
+    prev_chap_task = (
+        f"Đọc đoạn kết của chương vừa dịch liền trước: `chapters/{prev_chap}/content_vi.txt` hoặc `chapters/chap_{prev_chap}/content_vi.txt`"
+        if prev_chap
+        else "Kiểm tra mở đầu chương 1 xem có khớp với bối cảnh trong summary.txt không"
+    )
+    result_file = str((story_dir / "pre_check_result.json").resolve())
+
+    return template.format(
+        story_id=story_id,
+        story_dir=str(story_dir.resolve()),
+        start_chap=start_chap,
+        end_chap=end_chap,
+        num_chapters=len(chapters),
+        chapters_range=format_chapter_ranges(chapters),
+        prev_chap_str=prev_chap_str,
+        prev_chap_task=prev_chap_task,
+        prev_chap_num=prev_chap if prev_chap else 1,
+        raw_total=raw_total,
+        result_file=result_file
     )
 
 
