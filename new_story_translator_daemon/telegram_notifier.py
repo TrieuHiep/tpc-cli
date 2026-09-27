@@ -76,6 +76,31 @@ class TelegramNotifier:
         )
         self.send_message(msg)
 
+    def notify_skipped_stories(self, skipped_stories: List[Dict[str, Any]], is_dry_run: bool = False):
+        """Cảnh báo ngay lập tức danh sách các bộ truyện mới bị loại do khuyết chương / nhảy cóc (bất kể có dry-run hay không)."""
+        if not self.is_configured() or not skipped_stories:
+            return
+
+        mode_str = " <i>[CHẾ ĐỘ DRY-RUN]</i>" if is_dry_run else ""
+        lines = []
+        for item in skipped_stories[:12]:
+            src = item.get('source', '')
+            sid = item.get('story_id', '')
+            reason = html.escape(str(item.get('reason', '')))
+            badge = f" {item.get('badge')}" if item.get('badge') else ""
+            lines.append(f"  • [{src}]{badge} <code>{sid}</code>:\n    ↳ <i>{reason}</i>")
+
+        more_str = f"\n  • <i>... và {len(skipped_stories) - 12} bộ truyện lỗi khác</i>" if len(skipped_stories) > 12 else ""
+
+        msg = (
+            f"⚠️ <b>[CẢNH BÁO NGUỒN CÀO: LOẠI BỎ DO NHẢY CÓC]</b>{mode_str}\n\n"
+            f"Phát hiện <b>{len(skipped_stories)}</b> bộ truyện mới bị khuyết / đứt mạch chương raw:\n"
+            + "\n".join(lines)
+            + more_str + "\n\n"
+            f"👉 <i>Vui lòng forward danh sách này cho đội Crawler để kiểm tra và cào bù dữ liệu nguồn!</i>"
+        )
+        self.send_message(msg)
+
     def notify_session_start(
         self,
         queue: List[Dict[str, Any]],

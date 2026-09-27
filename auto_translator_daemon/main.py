@@ -72,6 +72,7 @@ def parse_args():
     parser.add_argument("--strategy", type=str, choices=["ATOMIC", "SPLIT"], default=BOUNDARY_STRATEGY, help=f"Chiến lược xử lý khi chạm trần (Mặc định: {BOUNDARY_STRATEGY}).")
     parser.add_argument("--timeout", type=float, default=TIMEOUT_HOURS, help=f"Timeout tối đa cho mỗi mẻ AGY CLI tính theo giờ (Mặc định: {TIMEOUT_HOURS} giờ).")
     parser.add_argument("--story-id", type=str, default=None, help='Chỉ định 1 hoặc nhiều story_id (phân cách bằng dấu phẩy: "id_A, id_B").')
+    parser.add_argument("--priority-story-id", "--priority-stories", dest="priority_story_ids", type=str, default=None, help='Chỉ định 1 hoặc nhiều story_id ưu tiên dịch trước lên đầu hàng đợi (phân cách bằng dấu phẩy: "id_A, id_B").')
     parser.add_argument("--exclude-story-id", type=str, default=None, help='Chỉ định loại trừ 1 hoặc nhiều story_id (phân cách bằng dấu phẩy: "id_A, id_B").')
     parser.add_argument("--no-upload", action="store_true", help="Bỏ qua bước upload/đồng bộ lên Google Drive (dùng cho chạy thử nghiệm an toàn).")
     return parser.parse_args()
@@ -81,9 +82,14 @@ def main():
     start_time = datetime.now()
 
     target_story_ids = parse_story_ids(args.story_id)
+    priority_story_ids = parse_story_ids(args.priority_story_ids)
     excluded_story_ids = set(parse_story_ids(args.exclude_story_id))
-    if excluded_story_ids and target_story_ids:
-        target_story_ids = [sid for sid in target_story_ids if sid not in excluded_story_ids]
+
+    if excluded_story_ids:
+        if target_story_ids:
+            target_story_ids = [sid for sid in target_story_ids if sid not in excluded_story_ids]
+        if priority_story_ids:
+            priority_story_ids = [sid for sid in priority_story_ids if sid not in excluded_story_ids]
 
     max_per_story = args.max_per_story
     if target_story_ids and "--max-per-story" not in sys.argv:
@@ -93,7 +99,9 @@ def main():
     print(f"🤖 AUTO TRANSLATOR DAEMON KHỞI ĐỘNG: {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"⚙️ Cấu hình: Hạn mức = {args.chapters} chaps | Max/Truyện = {max_per_story if max_per_story > 0 else 'Không giới hạn'} | Song song = {args.workers} workers | Sắp xếp = {args.sort_by} | Chiến lược = {args.strategy} | Timeout = {args.timeout}h | Dry-run = {args.dry_run}")
     if target_story_ids:
-        print(f"🎯 Chỉ định {len(target_story_ids)} story_id: {', '.join(target_story_ids)}")
+        print(f"🎯 Chỉ định duy nhất {len(target_story_ids)} story_id: {', '.join(target_story_ids)}")
+    if priority_story_ids:
+        print(f"🔥 Ưu tiên lên đầu {len(priority_story_ids)} story_id: {', '.join(priority_story_ids)}")
     if excluded_story_ids:
         print(f"🚫 Loại trừ {len(excluded_story_ids)} story_id: {', '.join(excluded_story_ids)}")
     print("=" * 70)
@@ -104,9 +112,12 @@ def main():
         gdrive_service = GoogleDriveService()
         web_priority_mgr = WebPriorityManager()
 
-        # Nếu gọi Web Priority API gặp lỗi -> Gửi cảnh báo qua Telegram ngay lập tức
+        # Nếu gọi Web Priority API gặp lỗi -> Gửi cảnh báo qua Telegram ngay lập tức và dừng toàn bộ tiến trình
         if web_priority_mgr.last_error:
-            notifier.notify_warning("Lỗi kết nối Web Priority API", web_priority_mgr.last_error)
+            print(f"\n🛑 [LỖI NGHIÊM TRỌNG] Web Priority API gặp lỗi: {web_priority_mgr.last_error}")
+            notifier.notify_warning("Lỗi kết nối Web Priority API", web_priority_mgr.last_error, will_exit=True)
+            print("🛑 Đã gửi cảnh báo Telegram. Dừng tiến trình để tránh dịch nhầm / tiêu hao quota ngoài ý muốn.")
+            sys.exit(1)
 
         scanner = DriveScanner(
             gdrive_service,
@@ -139,7 +150,8 @@ def main():
                 inspector,
                 limit=args.chapters,
                 strategy=args.strategy,
-                max_per_story=max_per_story
+                max_per_story=max_per_story,
+                priority_story_ids=priority_story_ids
             )
             all_skipped_stories.extend(web_skipped)
             web_priority_mgr.priority_stories = orig_stories
@@ -152,7 +164,8 @@ def main():
             inspector,
             limit=args.chapters,
             strategy=args.strategy,
-            max_per_story=max_per_story
+            max_per_story=max_per_story,
+            priority_story_ids=priority_story_ids
         )
         all_skipped_stories.extend(web_skipped)
         if excluded_story_ids:
@@ -190,7 +203,8 @@ def main():
         whitelist_queue, wl_skipped = queue_mgr.build_lazy_queue(
             candidate_sources,
             inspector,
-            current_count=current_count
+            current_count=current_count,
+            priority_story_ids=priority_story_ids
         )
         all_skipped_stories.extend(wl_skipped)
 
@@ -204,6 +218,9 @@ def main():
             badge_str = f" [{s['badge']}]" if s.get('badge') else ""
             vip_str = " [ƯU TIÊN WEB]" if s.get('is_web_priority') else ""
             print(f"  ❌ [{s['source']}]{badge_str}{vip_str} {s['story_id']}: {s['reason']}")
+
+        # Bắn cảnh báo Telegram ngay lập tức nếu phát hiện truyện bị khuyết chương / nhảy cóc (bất kể có dry-run hay không)
+        notifier.notify_skipped_stories(all_skipped_stories, is_dry_run=args.dry_run)
 
     if not queue:
         print("\n☕ Không có chương mới nào cần dịch hôm nay (toàn bộ truyện đã dịch 100% hoặc các truyện đều bị lỗi). Kết thúc phiên.")

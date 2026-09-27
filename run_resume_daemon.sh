@@ -21,6 +21,7 @@ ARGS=(
     --chapters 150
     --max-per-story 30
     --workers 2
+    # --priority-story-id "id_hot_1, id_hot_2"   # Ưu tiên đưa các truyện hot lên đầu hàng đợi dịch trước
     # --sort-by recent       # recent (mới nhất) hoặc oldest (cũ nhất)
     # --strategy SPLIT       # SPLIT (cắt vừa trần) hoặc ATOMIC (bảo toàn mạch)
     # --story-id "id_A, id_B"             # Chỉ định 1 hoặc nhiều story_id phân cách bằng dấu phẩy

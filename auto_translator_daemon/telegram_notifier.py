@@ -63,15 +63,46 @@ class TelegramNotifier:
             print(f"⚠️ [Telegram Error]: {e}")
             return False
 
-    def notify_warning(self, title: str, message: str):
-        """Thông báo cảnh báo lỗi không nghiêm trọng (ví dụ lỗi gọi API bên ngoài)."""
+    def notify_warning(self, title: str, message: str, will_exit: bool = False):
+        """Thông báo cảnh báo hệ thống (ví dụ lỗi gọi Web API)."""
         if not self.is_configured():
             return
+        status_line = (
+            "🛑 <b>Tiến trình đã tự động dừng lại để bảo toàn Quota. Vui lòng kiểm tra lại dịch vụ Web API!</b>"
+            if will_exit
+            else "ℹ️ <i>Hệ thống vẫn tiếp tục phiên chạy với các dữ liệu còn lại.</i>"
+        )
         msg = (
             f"⚠️ <b>[CẢNH BÁO HỆ THỐNG]</b>\n\n"
             f"📌 <b>Vấn đề:</b> {title}\n"
-            f"📝 <b>Chi tiết:</b> {message}\n"
-            f"ℹ️ <i>Hệ thống vẫn tiếp tục phiên chạy với các dữ liệu còn lại.</i>"
+            f"📝 <b>Chi tiết:</b> {message}\n\n"
+            f"{status_line}"
+        )
+        self.send_message(msg)
+
+    def notify_skipped_stories(self, skipped_stories: List[Dict[str, Any]], is_dry_run: bool = False):
+        """Cảnh báo ngay lập tức danh sách các bộ truyện bị loại do khuyết chương / nhảy cóc (bất kể có dry-run hay không)."""
+        if not self.is_configured() or not skipped_stories:
+            return
+
+        mode_str = " <i>[CHẾ ĐỘ DRY-RUN]</i>" if is_dry_run else ""
+        lines = []
+        for item in skipped_stories[:12]:
+            src = item.get('source', '')
+            sid = item.get('story_id', '')
+            reason = html.escape(str(item.get('reason', '')))
+            badge = f" {item.get('badge')}" if item.get('badge') else ""
+            vip = " ⭐ [ƯU TIÊN WEB]" if item.get('is_web_priority') else ""
+            lines.append(f"  • [{src}]{badge} <code>{sid}</code>{vip}:\n    ↳ <i>{reason}</i>")
+
+        more_str = f"\n  • <i>... và {len(skipped_stories) - 12} bộ truyện lỗi khác</i>" if len(skipped_stories) > 12 else ""
+
+        msg = (
+            f"⚠️ <b>[CẢNH BÁO NGUỒN CÀO: LOẠI BỎ DO NHẢY CÓC]</b>{mode_str}\n\n"
+            f"Phát hiện <b>{len(skipped_stories)}</b> bộ truyện bị khuyết / đứt mạch chương raw:\n"
+            + "\n".join(lines)
+            + more_str + "\n\n"
+            f"👉 <i>Vui lòng forward danh sách này cho đội Crawler để kiểm tra và cào bù dữ liệu nguồn!</i>"
         )
         self.send_message(msg)
 
@@ -124,13 +155,61 @@ class TelegramNotifier:
         )
         self.send_message(msg)
 
-    def notify_story_success(self, story_id: str, chapters_count: int, chaps_range: str, duration_str: str, uploaded: bool = True, total_raw: Optional[int] = None):
+    def notify_pre_check_result(
+        self,
+        story_id: str,
+        chapters_count: int,
+        chaps_range: str,
+        allowed: bool,
+        is_complete: bool,
+        report_brief: str,
+        isolated_path: Optional[str] = None
+    ):
+        """Thông báo kết quả thẩm định ngữ nghĩa nhanh trước khi dịch (Pre-Check Sanity Report)."""
+        if not self.is_configured():
+            return
+
+        if allowed:
+            complete_tag = "\n🏆 <b>DẤU HIỆU: ĐÃ ĐẾN ĐẠI KẾT CỤC TOÀN VĂN!</b> 🎉" if is_complete else ""
+            msg = (
+                f"🔍 <b>[THẨM ĐỊNH DỮ LIỆU: ĐẠT YÊU CẦU ✅]</b>\n\n"
+                f"📖 <b>Mã truyện:</b> <code>{story_id}</code>\n"
+                f"📊 <b>Dải chương kiểm tra:</b> {chapters_count} chương ({chaps_range})\n"
+                f"📝 <b>Đánh giá ngữ nghĩa:</b>\n"
+                f"<blockquote>{html.escape(report_brief)}</blockquote>"
+                f"{complete_tag}\n\n"
+                f"🚀 <i>Dữ liệu hợp lệ! Tiến trình bắt đầu chuyển sang bước dịch thuật...</i>"
+            )
+        else:
+            isolate_line = f"\n📦 <b>Thư mục cách ly (Debug):</b> <code>{isolated_path}</code>" if isolated_path else ""
+            msg = (
+                f"🚨 <b>[CẢNH BÁO NGUỒN CÀO: TỪ CHỐI DỊCH ❌]</b>\n\n"
+                f"📖 <b>Mã truyện:</b> <code>{story_id}</code>\n"
+                f"📊 <b>Dải chương dự kiến:</b> {chapters_count} chương ({chaps_range})\n"
+                f"❌ <b>Báo cáo lỗi (Forward cho đội Crawler sửa nguồn):</b>\n"
+                f"<blockquote>{html.escape(report_brief)}</blockquote>"
+                f"{isolate_line}\n\n"
+                f"⚠️ <i>Hệ thống đã tự động từ chối dịch mẻ này để tránh lãng phí chi phí AI và chuyển sang truyện tiếp theo.</i>"
+            )
+        self.send_message(msg)
+
+    def notify_story_success(
+        self,
+        story_id: str,
+        chapters_count: int,
+        chaps_range: str,
+        duration_str: str,
+        uploaded: bool = True,
+        total_raw: Optional[int] = None,
+        is_complete: bool = False
+    ):
         """Thông báo khi 1 bộ truyện dịch xong, đạt QC và upload Drive thành công."""
         if not self.is_configured():
             return
 
         total_str = f" / {total_raw} chaps" if total_raw else ""
         drive_msg = "Đã đồng bộ translated_chapters.zip thành công! 🎉" if uploaded else "Đã bỏ qua upload (Chế độ thử nghiệm --no-upload) ⚠️"
+        complete_banner = "\n\n🏆 <b>[CHÚC MỪNG: BỘ TRUYỆN ĐÃ ĐẠT ĐẠI KẾT CỤC HOÀN TOÀN]</b> 🎊" if is_complete else ""
 
         msg = (
             f"✅ <b>[HOÀN THÀNH BỘ TRUYỆN]</b>\n\n"
@@ -139,6 +218,7 @@ class TelegramNotifier:
             f"⏱ <b>Thời gian xử lý:</b> {duration_str}\n"
             f"🕵️ <b>Hậu kiểm QC:</b> 100% PASSED (Không chữ Hán, sạch HTML)\n"
             f"☁️ <b>Google Drive:</b> {drive_msg}"
+            f"{complete_banner}"
         )
         self.send_message(msg)
 

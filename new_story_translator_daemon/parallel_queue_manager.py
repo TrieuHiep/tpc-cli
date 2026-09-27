@@ -27,12 +27,14 @@ class ParallelQueueManager:
         self,
         candidate_stories_by_source: Dict[str, List[Dict[str, Any]]],
         remote_inspector: RemoteZipInspector,
-        sort_by: str = "recent"
+        sort_by: str = "recent",
+        priority_story_ids: Optional[List[str]] = None
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
         """
         Duyệt cuốn chiếu các truyện mới, đọc Central Directory của chapters.zip qua RAM,
         chọn ra danh sách các chương từ 1 đến min(target_chapters, max_chap).
         Tự động loại bỏ các truyện bị nhảy cóc / khuyết chương và tiếp tục quét bù quota.
+        Đẩy các bộ truyện nằm trong priority_story_ids lên đầu hàng đợi (Priority Boost).
         Ưu tiên theo Priority của từng tab (ví dụ: tab 'gay' ưu tiên 1 được xét trước),
         sau đó theo sort_by (recent/oldest) và SOURCE_PRIORITY.
         Đủ self.queue_size truyện thì dừng ngay lập tức (Early Stop).
@@ -64,6 +66,11 @@ class ParallelQueueManager:
         # Tầng 1: Độ ưu tiên (Priority) từ Google Sheet Tab (1 = cao nhất, 2, 3...)
         all_candidates.sort(key=lambda x: (x.get('sheet_meta') or {}).get('priority', 99))
 
+        # Tầng 0 (Độ ưu tiên cao nhất tuyệt đối): Các bộ truyện hot được chỉ định qua CLI
+        if priority_story_ids:
+            prio_order = {sid: idx for idx, sid in enumerate(priority_story_ids)}
+            all_candidates.sort(key=lambda x: prio_order.get(x.get('story_id'), 9999))
+
         print(f"🔍 Đang thẩm định mục lục từ xa ({len(all_candidates)} ứng viên đã sắp xếp theo độ ưu tiên)...")
 
         for s_info in all_candidates:
@@ -75,6 +82,10 @@ class ParallelQueueManager:
             source = s_info['source']
             sheet_meta = s_info.get('sheet_meta') or {}
             badge = sheet_meta.get('badge', '')
+
+            is_hot = priority_story_ids and story_id in priority_story_ids
+            if is_hot:
+                badge = ("🔥 [HOT] " + badge).strip()
             badge_str = f" {badge}" if badge else ""
             priority = sheet_meta.get('priority', 99)
             czip = s_info['chapters_file']
@@ -91,7 +102,7 @@ class ParallelQueueManager:
                 print(f"  ⚠️ [{story_id}]{badge_str}: chapters.zip rỗng hoặc không tìm thấy content.txt. Bỏ qua.")
                 continue
 
-            # Kiểm tra tính toàn vẹn (Data Integrity & Sequentiality):
+            # Kiểm tra tính toàn vẹn trên TOÀN BỘ file raw (Full Raw Sequential Integrity):
             # 1. Bắt buộc raw phải bắt đầu từ chương 1
             if raw_nums[0] != 1:
                 gap_reason = f"Chương raw bắt đầu từ chương {raw_nums[0]}, không phải từ chương 1"
@@ -106,23 +117,18 @@ class ParallelQueueManager:
                 })
                 continue
 
-            # 2. Lấy các chương từ 1 đến self.target_chapters (ví dụ 1..100)
-            selected_chaps = [c for c in raw_nums if c <= self.target_chapters]
-            if not selected_chaps:
-                selected_chaps = raw_nums[:self.target_chapters]
-
-            # 3. Kiểm tra tính liên tục 100% không đứt đoạn (1 -> len(selected_chaps))
-            expected_chaps = list(range(1, len(selected_chaps) + 1))
-            if selected_chaps != expected_chaps:
+            # 2. Bắt buộc toàn bộ dải raw phải liên tục 100% từ chương 1 đến chương cuối cùng (1 -> len(raw_nums))
+            expected_raw = list(range(1, len(raw_nums) + 1))
+            if raw_nums != expected_raw:
                 first_missing = None
-                for act, exp in zip(selected_chaps, expected_chaps):
+                for act, exp in zip(raw_nums, expected_raw):
                     if act != exp:
                         first_missing = (exp, act)
                         break
                 if first_missing:
-                    gap_reason = f"Bị khuyết chương: Mong đợi chương {first_missing[0]} nhưng lại thấy chương {first_missing[1]} (nhảy cóc)"
+                    gap_reason = f"Dải raw gốc bị khuyết/nhảy cóc: Mong đợi chương {first_missing[0]} nhưng lại thấy chương {first_missing[1]} (tổng raw: {len(raw_nums)} chaps)"
                 else:
-                    gap_reason = "Dải chương raw bị khuyết hoặc nhảy cóc"
+                    gap_reason = f"Dải raw gốc bị khuyết hoặc nhảy cóc (tổng raw: {len(raw_nums)} chaps)"
 
                 print(f"  ❌ [{story_id}]{badge_str} [SKIP - NHẢY CÓC]: {gap_reason}")
                 title = sheet_meta.get('title') or story_id
@@ -134,6 +140,9 @@ class ParallelQueueManager:
                     'reason': gap_reason
                 })
                 continue
+
+            # 3. Sau khi toàn bộ raw đã hợp lệ 100%, chọn các chương đầu theo target_chapters (ví dụ: 1 -> 100)
+            selected_chaps = raw_nums[:self.target_chapters]
 
             print(f"  ✨ [{story_id}]{badge_str} (P{priority}): Phát hiện {len(raw_nums)} chương raw -> Chọn {len(selected_chaps)} chương đầu ({format_chapter_ranges(selected_chaps, arrow='➔')})")
 

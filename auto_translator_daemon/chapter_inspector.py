@@ -84,10 +84,14 @@ class ChapterInspector:
             return {'is_valid': False, 'reason': f'Lỗi kết nối khi đọc chapters.zip của {story_id}'}
         raw_nums = sorted(list(raw_chaps.keys()))
 
-        if not raw_nums:
-            return {'is_valid': False, 'reason': 'Không đọc được danh sách chương trong chapters.zip'}
-
-        # 2. Đã bỏ qua kiểm tra tuần tự (check_sequential) vì biên tập viên đã đối chiếu và lọc trên Google Sheet Whitelist
+        # 2. Bắt buộc kiểm tra tính toàn vẹn và tuần tự trên TOÀN BỘ file raw (từ chương 1 đến hết)
+        is_seq, seq_reason = self.check_sequential(raw_nums)
+        if not is_seq:
+            return {
+                'is_valid': False,
+                'is_gap': True,
+                'reason': f"Dải raw gốc bị lỗi toàn vẹn: {seq_reason} (tổng raw: {len(raw_nums)} chaps)"
+            }
 
         # 3. Đọc mục lục translated_chapters.zip từ xa qua RAM
         trans_nums = set()

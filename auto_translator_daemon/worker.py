@@ -7,6 +7,7 @@ Quy trình trọn gói:
 4. Đóng gói lại và đồng bộ translated_chapters.zip, glossary.json, checkpoints.json lên Drive.
 5. Giải phóng thư mục tạm và thông báo Telegram.
 """
+import json
 import shutil
 import urllib.request
 from pathlib import Path
@@ -16,6 +17,7 @@ from googleapiclient.http import MediaIoBaseDownload
 
 from auto_translator_daemon.config import STORAGE_DIR, TEMP_FAILED_DIR, format_chapter_ranges
 from auto_translator_daemon.agy_runner import AGYRunner
+from auto_translator_daemon.pre_translate_validator import PreTranslateValidator
 from auto_translator_daemon.qc_validator import QCValidator
 from auto_translator_daemon.drive_syncer import DriveSyncer
 from auto_translator_daemon.telegram_notifier import TelegramNotifier
@@ -167,6 +169,48 @@ def process_single_resume_story(
             'duration': '0s'
         }
 
+    chaps_range_label = format_chapter_ranges(chaps, arrow="➔")
+
+    # 1.5. Thẩm định ngữ nghĩa dữ liệu truyện bằng AGY CLI trước khi cấp phép dịch (Pre-Translate Sanity Check)
+    print(f"\n🕵️ [{story_id}] Đang chuẩn bị workspace và thẩm định dữ liệu raw (Pre-Translate Sanity Check)...")
+    agy_runner.prepare_local_workspace(temp_story_dir)
+
+    pre_checker = PreTranslateValidator(timeout_minutes=5)
+    pre_ok, check_data = pre_checker.validate_story(temp_story_dir, chaps, item['story_info'])
+
+    allowed_to_translate = check_data.get('allowed_to_translate', False)
+    is_complete_story = check_data.get('is_complete', False)
+    report_brief = check_data.get('report_brief', 'Không có báo cáo chi tiết.')
+
+    # Gửi thông báo Telegram ngay lập tức cho Admin / Đội Crawler
+    notifier.notify_pre_check_result(
+        story_id=story_id,
+        chapters_count=len(chaps),
+        chaps_range=chaps_range_label,
+        allowed=allowed_to_translate,
+        is_complete=is_complete_story,
+        report_brief=report_brief,
+        isolated_path=f"storage/temp_failed/{story_id}" if not allowed_to_translate else None
+    )
+
+    if not allowed_to_translate:
+        print(f"❌ [{story_id}] THẨM ĐỊNH KHÔNG ĐẠT: Từ chối dịch mẻ này!")
+        print(f"   📝 Báo cáo lỗi: {report_brief}")
+        isolate_failed_story(temp_story_dir, story_id)
+        return {
+            'story_id': story_id,
+            'chapters': len(chaps),
+            'agy_status': 'REJECTED (Pre-check) ❌',
+            'qc_status': 'SKIPPED',
+            'sync_status': 'BLOCKED 🛑',
+            'duration': str(datetime.now() - story_start).split('.')[0]
+        }
+
+    print(f"✅ [{story_id}] THẨM ĐỊNH THÀNH CÔNG: Được phép tiến hành dịch!")
+    print(f"   📝 Đánh giá: {report_brief}")
+    if is_complete_story:
+        print(f"   🏆 DẤU HIỆU ĐẠI KẾT CỤC: Bộ truyện đã đi đến hồi kết toàn văn!")
+
     # 2. Chạy AGY CLI
     success = agy_runner.run_translation(temp_story_dir, chaps)
     if not success:
@@ -210,20 +254,33 @@ def process_single_resume_story(
 
     print(f"✅ [{story_id}] Toàn bộ {len(chaps)} chương ĐẠT 100% chuẩn QC!")
 
+    # Ghi nhận trạng thái Đại kết cục vào checkpoints.json nếu có (tuyệt đối không đụng vào info.json)
+    if is_complete_story:
+        cp_file = temp_story_dir / "checkpoints.json"
+        try:
+            cp_data = {}
+            if cp_file.exists():
+                cp_data = json.loads(cp_file.read_text(encoding='utf-8', errors='ignore'))
+            cp_data["is_complete"] = True
+            cp_data["completed_at"] = datetime.now().isoformat()
+            cp_file.write_text(json.dumps(cp_data, ensure_ascii=False, indent=2), encoding='utf-8')
+            print(f"🏆 [{story_id}] Đã ghi nhận cờ is_complete: true vào checkpoints.json!")
+        except Exception as e:
+            print(f"⚠️ [{story_id}] Lỗi cập nhật checkpoints.json: {e}")
+
     # 4. Đồng bộ ngược lên Google Drive
     story_duration_str = str(datetime.now() - story_start).split('.')[0]
     raw_total = (item.get('inspected_meta') or {}).get('raw_chapters_count')
 
-    chaps_range_label = format_chapter_ranges(chaps, arrow="➔")
     if no_upload:
         print(f"\n⚠️ [{story_id}] CỜ --no-upload ĐANG BẬT: Bỏ qua bước đóng gói và upload Google Drive theo yêu cầu thử nghiệm.")
         sync_status_str = "SKIPPED (--no-upload)"
-        notifier.notify_story_success(story_id, len(chaps), chaps_range_label, story_duration_str, uploaded=False, total_raw=raw_total)
+        notifier.notify_story_success(story_id, len(chaps), chaps_range_label, story_duration_str, uploaded=False, total_raw=raw_total, is_complete=is_complete_story)
     else:
         sync_success = syncer.sync_story(item['story_info'], temp_story_dir, chaps)
         sync_status_str = "SUCCESS ✅" if sync_success else "FAILED ❌"
         if sync_success:
-            notifier.notify_story_success(story_id, len(chaps), chaps_range_label, story_duration_str, uploaded=True, total_raw=raw_total)
+            notifier.notify_story_success(story_id, len(chaps), chaps_range_label, story_duration_str, uploaded=True, total_raw=raw_total, is_complete=is_complete_story)
 
     # 5. Tự động dọn dẹp sạch thư mục tạm giải phóng dung lượng đĩa
     print(f"🧹 [{story_id}] Đang giải phóng bộ nhớ đĩa ({temp_story_dir})...")

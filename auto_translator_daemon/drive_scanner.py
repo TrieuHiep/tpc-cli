@@ -100,7 +100,8 @@ class DriveScanner:
         chapter_inspector,
         limit: int = 100,
         strategy: str = "SPLIT",
-        max_per_story: int = 0
+        max_per_story: int = 0,
+        priority_story_ids: Optional[List[str]] = None
     ) -> Tuple[List[Dict[str, Any]], int, Set[str]]:
         """
         Chặng 1: Xử lý Fast-Path các truyện ưu tiên từ Web API theo driveUrl (Folder ID).
@@ -124,7 +125,12 @@ class DriveScanner:
 
         print(f"\n🚀 [CHẶNG 1] Bắt đầu xử lý Fast-Path Web Priority ({len(priority_stories)} bộ truyện từ Web API)...")
 
-        for story_id, item in priority_stories.items():
+        items_to_inspect = list(priority_stories.items())
+        if priority_story_ids:
+            prio_order = {sid: idx for idx, sid in enumerate(priority_story_ids)}
+            items_to_inspect.sort(key=lambda x: prio_order.get(x[0], 9999))
+
+        for story_id, item in items_to_inspect:
             processed_story_ids.add(story_id)
             folder_id = item.get('drive_folder_id', '').strip()
 

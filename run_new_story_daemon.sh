@@ -21,6 +21,7 @@ ARGS=(
     --workers 2
     --limit-stories 4
     --chapters 110
+    # --priority-story-id "id_hot_1, id_hot_2"   # Ưu tiên đưa các truyện hot lên đầu hàng đợi dịch trước
     # --sort-by recent          # recent (mới nhất) hoặc oldest (cũ nhất)
     # --source truyendichwiki    # Quét riêng 1 nguồn: ixdzs8, biquge, truyendichwiki, novel543
     # --story-id "id_A, id_B"             # Chỉ định 1 hoặc nhiều story_id phân cách bằng dấu phẩy

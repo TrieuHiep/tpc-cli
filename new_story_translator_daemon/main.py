@@ -62,6 +62,7 @@ def parse_args():
     parser.add_argument("--sort-by", type=str, choices=["recent", "oldest"], default="recent", help="Tiêu chí sắp xếp: recent (mới nhất) hoặc oldest (cũ nhất). Mặc định: recent.")
     parser.add_argument("--source", type=str, choices=["ixdzs8", "biquge", "truyendichwiki", "novel543"], default=None, help="Chỉ định quét riêng 1 nguồn cụ thể.")
     parser.add_argument("--story-id", type=str, default=None, help='Chỉ định 1 hoặc nhiều story_id (phân cách bằng dấu phẩy: "id_A, id_B").')
+    parser.add_argument("--priority-story-id", "--priority-stories", dest="priority_story_ids", type=str, default=None, help='Chỉ định 1 hoặc nhiều story_id ưu tiên dịch trước lên đầu hàng đợi (phân cách bằng dấu phẩy: "id_A, id_B").')
     parser.add_argument("--exclude-story-id", type=str, default=None, help='Chỉ định loại trừ 1 hoặc nhiều story_id (phân cách bằng dấu phẩy: "id_A, id_B").')
     parser.add_argument("--no-upload", action="store_true", help="Bỏ qua bước upload lên Google Drive (dùng cho chạy thử nghiệm an toàn).")
     parser.add_argument("--timeout", type=float, default=TIMEOUT_HOURS, help=f"Timeout tối đa cho mỗi mẻ AGY CLI tính theo giờ (Mặc định: {TIMEOUT_HOURS}h).")
@@ -72,15 +73,22 @@ def main():
     start_time = datetime.now()
 
     target_story_ids = parse_story_ids(args.story_id)
+    priority_story_ids = parse_story_ids(args.priority_story_ids)
     excluded_story_ids = set(parse_story_ids(args.exclude_story_id))
-    if excluded_story_ids and target_story_ids:
-        target_story_ids = [sid for sid in target_story_ids if sid not in excluded_story_ids]
+
+    if excluded_story_ids:
+        if target_story_ids:
+            target_story_ids = [sid for sid in target_story_ids if sid not in excluded_story_ids]
+        if priority_story_ids:
+            priority_story_ids = [sid for sid in priority_story_ids if sid not in excluded_story_ids]
 
     print("=" * 75)
     print(f"🆕 NEW STORY TRANSLATOR DAEMON KHỞI ĐỘNG: {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"⚙️ Cấu hình: Hàng đợi = {args.limit_stories} truyện | Mỗi truyện = {args.chapters} chaps | Song song = {args.workers} workers | Dry-run = {args.dry_run}")
     if target_story_ids:
-        print(f"🎯 Chỉ định {len(target_story_ids)} story_id: {', '.join(target_story_ids)}")
+        print(f"🎯 Chỉ định duy nhất {len(target_story_ids)} story_id: {', '.join(target_story_ids)}")
+    if priority_story_ids:
+        print(f"🔥 Ưu tiên lên đầu {len(priority_story_ids)} story_id: {', '.join(priority_story_ids)}")
     if excluded_story_ids:
         print(f"🚫 Loại trừ {len(excluded_story_ids)} story_id: {', '.join(excluded_story_ids)}")
     print("=" * 75)
@@ -123,7 +131,12 @@ def main():
             candidate_sources[src] = [s for s in candidate_sources[src] if s['story_id'] in target_story_ids]
 
     # 3. Lập hàng đợi 10 truyện mới (lấy 100 chương đầu, tự động loại bỏ truyện nhảy cóc)
-    queue, skipped_stories = queue_mgr.build_queue(candidate_sources, remote_inspector, sort_by=args.sort_by)
+    queue, skipped_stories = queue_mgr.build_queue(
+        candidate_sources,
+        remote_inspector,
+        sort_by=args.sort_by,
+        priority_story_ids=priority_story_ids
+    )
 
     # In danh sách các truyện mới bị loại do nhảy cóc (nếu có)
     if skipped_stories:
@@ -131,6 +144,9 @@ def main():
         for s in skipped_stories:
             badge_str = f" [{s['badge']}]" if s.get('badge') else ""
             print(f"  ❌ [{s['source']}]{badge_str} {s['story_id']}: {s['reason']}")
+
+        # Bắn cảnh báo Telegram ngay lập tức nếu phát hiện truyện bị khuyết chương / nhảy cóc (bất kể có dry-run hay không)
+        notifier.notify_skipped_stories(skipped_stories, is_dry_run=args.dry_run)
 
     if not queue:
         print("\n☕ Không tìm thấy truyện mới nào hợp lệ chưa dịch trên Google Drive (hoặc toàn bộ truyện mới đều bị lỗi khuyết chương / chưa nằm trong Whitelist). Kết thúc.")

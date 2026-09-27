@@ -2,7 +2,7 @@
 Module quản lý hàng đợi Lazy Queue Builder:
 Quét cuốn chiếu từng truyện một qua RAM, đủ trần 300 chương thì DỪNG LẬP TỨC (Early Stop).
 """
-from typing import List, Dict, Any, Tuple
+from typing import List, Dict, Any, Tuple, Optional
 from auto_translator_daemon.config import DAILY_CHAPTER_LIMIT, BOUNDARY_STRATEGY, SOURCE_PRIORITY, MAX_CHAPTERS_PER_STORY
 
 class QueueManager:
@@ -17,11 +17,13 @@ class QueueManager:
         self,
         candidate_stories_by_source: Dict[str, List[Dict[str, Any]]],
         chapter_inspector,
-        current_count: int = 0
+        current_count: int = 0,
+        priority_story_ids: Optional[List[str]] = None
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
         """
         Quét cuốn chiếu các truyện Whitelist theo thứ tự nguồn và sắp xếp:
         - Nhận current_count từ Chặng 1 (Web Priority) để tiếp nối hạn mức.
+        - Đẩy các bộ truyện nằm trong priority_story_ids lên đầu hàng đợi (Priority Boost).
         - Kiểm tra mục lục zip từ xa qua RAM cho từng truyện.
         - Tự động loại bỏ các truyện bị nhảy cóc / khuyết chương và tiếp tục quét bù quota.
         - Tìm ra các chương tồn đọng chưa dịch (raw_count > trans_count).
@@ -54,6 +56,11 @@ class QueueManager:
         # P1: gay (Đam Mỹ) -> P2: ixdzs8 -> P3: truyendichwiki -> P4: novel543
         all_candidates.sort(key=lambda x: (x.get('sheet_meta') or {}).get('priority', 99))
 
+        # Tầng 0 (Độ ưu tiên cao nhất tuyệt đối): Các bộ truyện hot được chỉ định qua CLI
+        if priority_story_ids:
+            prio_order = {sid: idx for idx, sid in enumerate(priority_story_ids)}
+            all_candidates.sort(key=lambda x: prio_order.get(x.get('story_id'), 9999))
+
         print(f"\n🔍 Đang duyệt cuốn chiếu ({len(all_candidates)} ứng viên Whitelist đã xếp theo thứ tự ưu tiên)...")
 
         for s_info in all_candidates:
@@ -65,6 +72,10 @@ class QueueManager:
             source = s_info['source']
             sheet_meta = s_info.get('sheet_meta') or {}
             badge = sheet_meta.get('badge', '')
+
+            is_hot = priority_story_ids and story_id in priority_story_ids
+            if is_hot:
+                badge = ("🔥 [HOT] " + badge).strip()
             badge_str = f" {badge}" if badge else ""
             priority = sheet_meta.get('priority', 99)
 

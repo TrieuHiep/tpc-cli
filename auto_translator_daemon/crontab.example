@@ -18,5 +18,8 @@
 # Chạy vào 02:00 sáng mỗi ngày:
 0 2 * * * cd /opt/story-translator && /opt/story-translator/venv/bin/python -m auto_translator_daemon.main >> /opt/story-translator/logs/cron_daily.log 2>&1
 
+# (Tùy chọn) Chạy có ưu tiên danh sách truyện hot lên đầu hàng đợi:
+# 0 2 * * * cd /opt/story-translator && /opt/story-translator/venv/bin/python -m auto_translator_daemon.main --priority-story-id "hot_story_1, hot_story_2" >> /opt/story-translator/logs/cron_daily.log 2>&1
+
 # (Tùy chọn) Chạy test thử 1 lần vào lúc 12:00 trưa ở chế độ dry-run để kiểm tra hàng đợi:
 # 0 12 * * * cd /opt/story-translator && /opt/story-translator/venv/bin/python -m auto_translator_daemon.main --dry-run >> /opt/story-translator/logs/cron_dryrun.log 2>&1
