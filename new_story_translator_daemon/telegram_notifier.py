@@ -88,7 +88,11 @@ class TelegramNotifier:
             sid = item.get('story_id', '')
             reason = html.escape(str(item.get('reason', '')))
             badge = f" {item.get('badge')}" if item.get('badge') else ""
-            lines.append(f"• [{src}]{badge} <code>{sid}</code>:\n  ↳ <i>{reason}</i>")
+            title = item.get('title')
+            title_str = f" | <i>{html.escape(str(title))}</i>" if title and title != sid else ""
+            folder_id = item.get('folder_id')
+            drive_link = f"\n  📁 <a href=\"https://drive.google.com/drive/folders/{folder_id}\">Mở thư mục Google Drive ↗</a>" if folder_id else ""
+            lines.append(f"• [{src}]{badge} <code>{sid}</code>{title_str}:\n  ↳ <i>{reason}</i>{drive_link}")
 
         more_str = f"\n\n• <i>... và {len(skipped_stories) - 12} bộ truyện lỗi khác</i>" if len(skipped_stories) > 12 else ""
 
@@ -135,7 +139,9 @@ class TelegramNotifier:
                 badge = f" {item.get('badge')}" if item.get('badge') else ""
                 title = item.get('title')
                 title_str = f" | <i>{html.escape(str(title))}</i>" if title and title != sid else ""
-                skip_lines.append(f"• [{src}]{badge} <code>{sid}</code>{title_str}:\n  ↳ <i>{reason}</i>")
+                folder_id = item.get('folder_id')
+                drive_link = f"\n  📁 <a href=\"https://drive.google.com/drive/folders/{folder_id}\">Mở thư mục Google Drive ↗</a>" if folder_id else ""
+                skip_lines.append(f"• [{src}]{badge} <code>{sid}</code>{title_str}:\n  ↳ <i>{reason}</i>{drive_link}")
             if len(skipped_stories) > 6:
                 skip_lines.append(f"• <i>... và {len(skipped_stories) - 6} truyện khác</i>")
             skipped_section = (

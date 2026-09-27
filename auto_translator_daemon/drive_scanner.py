@@ -202,10 +202,13 @@ class DriveScanner:
                 reason = inspected.get('reason', 'Không hợp lệ')
                 if inspected.get('is_gap'):
                     print(f"  ❌ [{story_id}] ⭐ [ƯU TIÊN WEB] [SKIP - NHẢY CÓC]: {reason}")
+                    title = item.get('name') or item.get('title') or story_id
                     skipped_stories.append({
                         'source': source,
                         'story_id': story_id,
+                        'title': title,
                         'reason': reason,
+                        'folder_id': folder_id,
                         'is_web_priority': True
                     })
                 else:
