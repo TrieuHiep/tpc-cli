@@ -42,26 +42,22 @@ class QueueManager:
             all_candidates.extend(candidate_stories_by_source.get(source, []))
 
         # 2. Sắp xếp đa tầng ưu tiên (Stable Multi-tier Sorting):
-        # Tầng 3: Thứ tự nguồn trong SOURCE_PRIORITY
+        # Tầng 2: Thời gian sửa đổi chapters.zip (mới nhất lên đầu trong từng nguồn)
+        all_candidates.sort(key=lambda x: x.get('modified_time') or '', reverse=True)
+
+        # Tầng 1: Độ ưu tiên kho nguồn theo SOURCE_PRIORITY (fanqienovel là ưu tiên số 1)
         def get_source_idx(x):
             src = x.get('source', '')
             return SOURCE_PRIORITY.index(src) if src in SOURCE_PRIORITY else 99
 
         all_candidates.sort(key=get_source_idx)
 
-        # Tầng 2: Thời gian sửa đổi chapters.zip (mới nhất lên đầu)
-        all_candidates.sort(key=lambda x: x.get('modified_time') or '', reverse=True)
-
-        # Tầng 1: Độ ưu tiên (Priority) từ Google Sheet Tab:
-        # P1: gay (Đam Mỹ) -> P2: ixdzs8 -> P3: truyendichwiki -> P4: novel543
-        all_candidates.sort(key=lambda x: (x.get('sheet_meta') or {}).get('priority', 99))
-
         # Tầng 0 (Độ ưu tiên cao nhất tuyệt đối): Các bộ truyện hot được chỉ định qua CLI
         if priority_story_ids:
             prio_order = {sid: idx for idx, sid in enumerate(priority_story_ids)}
             all_candidates.sort(key=lambda x: prio_order.get(x.get('story_id'), 9999))
 
-        print(f"\n🔍 Đang duyệt cuốn chiếu ({len(all_candidates)} ứng viên Whitelist đã xếp theo thứ tự ưu tiên)...")
+        print(f"\n🔍 Đang duyệt cuốn chiếu ({len(all_candidates)} ứng viên đã xếp theo thứ tự ưu tiên)...")
 
         for s_info in all_candidates:
             if current_count >= self.limit:

@@ -1,7 +1,7 @@
 """
 Chương trình chính (Entrypoint) của Auto Translator Daemon.
 Quy trình tối ưu hóa:
-1. Batch Query Drive + Whitelist Google Sheet.
+1. Batch Query Drive theo SOURCE_PRIORITY (fanqienovel số 1).
 2. Sắp xếp ứng viên theo cờ --sort-by (recent / oldest).
 3. Lazy Streaming Inspection qua RAM (Zero Disk Usage) -> Đủ 300 chương DỪNG LẬP TỨC.
 4. Chỉ tải DUY NHẤT các truyện được chọn vào thư mục tạm.
@@ -36,7 +36,6 @@ from auto_translator_daemon.config import (
     format_chapter_ranges
 )
 from auto_translator_daemon.worker import process_single_resume_story, isolate_failed_story
-from auto_translator_daemon.whitelist_manager import WhitelistManager
 from auto_translator_daemon.web_priority_manager import WebPriorityManager
 from auto_translator_daemon.drive_scanner import DriveScanner
 from auto_translator_daemon.chapter_inspector import ChapterInspector
@@ -121,7 +120,6 @@ def main():
 
         scanner = DriveScanner(
             gdrive_service,
-            whitelist_mgr=None,  # Lazy loaded ở Chặng 2 nếu Quota còn thiếu
             web_priority_mgr=web_priority_mgr
         )
         inspector = ChapterInspector(gdrive_service)
@@ -135,7 +133,7 @@ def main():
 
     # 2. CHẶNG 1: Quét các truyện ưu tiên từ Web (Thịnh Phong Các API)
     # Lấy danh sách từ API trước, duyệt và thẩm định từng truyện qua RAM
-    # Nếu chạm trần args.chapters -> BỎ QUA HOÀN TOÀN Chặng 2 (Google Sheet Whitelist)
+    # Nếu chạm trần args.chapters -> BỎ QUA HOÀN TOÀN Chặng 2 (Google Drive)
     web_queue = []
     current_count = 0
     processed_story_ids = set()
@@ -171,23 +169,19 @@ def main():
         if excluded_story_ids:
             web_priority_mgr.priority_stories = orig_stories
 
-    # CHẶNG 2: Whitelist Fallback (Chỉ chạy khi Quota ngày vẫn còn dư hoặc còn truyện chỉ định chưa xử lý)
-    whitelist_queue = []
+    # CHẶNG 2: Google Drive Scanning (Chạy khi Quota ngày vẫn còn dư hoặc còn truyện chỉ định chưa xử lý)
+    drive_queue = []
     unprocessed_targets = set(target_story_ids) - processed_story_ids if target_story_ids else set()
 
     if current_count >= args.chapters and not unprocessed_targets:
         print(f"\n🎯 Quota ngày ({args.chapters} chaps) đã được lấp đầy 100% bởi truyện Ưu Tiên Web!")
-        print("⚡ BỎ QUA HOÀN TOÀN việc quét Google Sheet Whitelist và Google Drive.")
+        print("⚡ BỎ QUA HOÀN TOÀN việc quét Google Drive.")
     else:
         remaining_quota = max(0, args.chapters - current_count)
         if unprocessed_targets:
             print(f"\n📑 [CHẶNG 2] Tiếp tục tìm kiếm {len(unprocessed_targets)} story_id còn lại trên Google Drive: {', '.join(unprocessed_targets)}...")
         else:
-            print(f"\n📑 [CHẶNG 2] Quota còn dư {remaining_quota}/{args.chapters} chaps. Bắt đầu tải Google Sheet Whitelist để bù đắp...")
-
-        # Khởi tạo WhitelistManager theo cơ chế Lazy Loading (chỉ tải khi thực sự cần)
-        whitelist_mgr = WhitelistManager()
-        scanner.whitelist_mgr = whitelist_mgr
+            print(f"\n📑 [CHẶNG 2] Quota còn dư {remaining_quota}/{args.chapters} chaps. Bắt đầu quét các nguồn Google Drive...")
 
         # Quét các nguồn trên Drive, tự động loại trừ các truyện đã xử lý ở Chặng 1 và các truyện bị exclude (Chống trùng lặp 100%)
         scan_excluded = processed_story_ids.union(excluded_story_ids)
@@ -200,16 +194,16 @@ def main():
             for src in candidate_sources:
                 candidate_sources[src] = [s for s in candidate_sources[src] if s['story_id'] in target_story_ids]
 
-        whitelist_queue, wl_skipped = queue_mgr.build_lazy_queue(
+        drive_queue, drive_skipped = queue_mgr.build_lazy_queue(
             candidate_sources,
             inspector,
             current_count=current_count,
             priority_story_ids=priority_story_ids
         )
-        all_skipped_stories.extend(wl_skipped)
+        all_skipped_stories.extend(drive_skipped)
 
     # Tổng hợp hàng đợi cuối cùng:
-    queue = web_queue + whitelist_queue
+    queue = web_queue + drive_queue
 
     # In thông báo các truyện bị loại do nhảy cóc (nếu có)
     if all_skipped_stories:

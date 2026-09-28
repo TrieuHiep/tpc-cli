@@ -1,21 +1,19 @@
 """
 Module quét và phát hiện các bộ truyện MỚI trên Google Drive:
 Điều kiện chọn truyện mới:
-1. Nằm trong Google Sheet Whitelist (được biên tập viên phê duyệt).
-2. ĐÃ CÓ file raw chapters.zip trên Google Drive.
-3. CHƯA CÓ file translated_chapters.zip (hoặc file rỗng <= 100 bytes).
+1. ĐÃ CÓ file raw chapters.zip trên Google Drive.
+2. CHƯA CÓ file translated_chapters.zip (hoặc file rỗng <= 100 bytes).
+3. Đạt yêu cầu thẩm định cấu trúc chương (không khuyết chương / nhảy cóc).
 """
 from typing import Dict, Any, List, Optional
 from new_story_translator_daemon.config import DRIVE_FOLDERS, SOURCE_PRIORITY
-from new_story_translator_daemon.whitelist_manager import WhitelistManager
 
 class DriveNewScanner:
     """Quét và lọc các bộ truyện mới tinh từ Google Drive."""
 
-    def __init__(self, gdrive_service, whitelist_mgr: Optional[WhitelistManager] = None):
+    def __init__(self, gdrive_service):
         self.gdrive_service = gdrive_service
         self.service = self.gdrive_service.service
-        self.whitelist_mgr = whitelist_mgr or WhitelistManager()
 
     def fetch_all_child_folders(self, root_folder_id: str) -> Dict[str, Dict[str, str]]:
         """Lấy tất cả folder con trong root_folder_id, trả về dict: {folder_id: {'id': ..., 'name': ...}}"""
@@ -113,11 +111,6 @@ class DriveNewScanner:
             for folder_id, folder_obj in folders.items():
                 story_id = folder_obj['name']
 
-                # Điều kiện 1: BẮT BUỘC nằm trong Whitelist (Google Sheet)
-                if not self.whitelist_mgr.is_whitelisted(source, story_id):
-                    continue
-                meta_from_sheet = self.whitelist_mgr.get_story_info(source, story_id)
-
                 story_files = all_files_by_parent.get(folder_id, {})
 
                 # Điều kiện 2: BẮT BUỘC phải có chapters.zip (raw tiếng Trung)
@@ -143,7 +136,7 @@ class DriveNewScanner:
                     'translated_chapters_file': tzip,
                     'modified_time': chap_mod,
                     'files_meta': story_files,
-                    'sheet_meta': meta_from_sheet
+                    'sheet_meta': None
                 })
 
             # Sắp xếp theo sort_by
@@ -152,10 +145,7 @@ class DriveNewScanner:
             else:
                 eligible_new_stories.sort(key=lambda x: x['modified_time'] or '', reverse=True)
 
-            # Ưu tiên theo Priority từ Whitelist (1 = cao nhất, 2, 3...)
-            eligible_new_stories.sort(key=lambda x: (x.get('sheet_meta') or {}).get('priority', 99))
-
-            print(f"✨ Nguồn [{source}]: Tìm thấy {len(eligible_new_stories)} bộ truyện MỚI CHƯA DỊCH (xếp theo: priority + {sort_by}).")
+            print(f"✨ Nguồn [{source}]: Tìm thấy {len(eligible_new_stories)} bộ truyện MỚI CHƯA DỊCH (xếp theo: {sort_by}).")
             results[source] = eligible_new_stories
 
         return results

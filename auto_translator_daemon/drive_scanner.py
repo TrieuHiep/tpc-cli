@@ -13,7 +13,6 @@ sys.path.insert(0, str(BASE_DIR / "story-translator-cli"))
 
 from app.services.gdrive import GoogleDriveService
 from auto_translator_daemon.config import DRIVE_FOLDERS, SOURCE_PRIORITY
-from auto_translator_daemon.whitelist_manager import WhitelistManager
 from auto_translator_daemon.web_priority_manager import WebPriorityManager
 
 class DriveScanner:
@@ -22,12 +21,10 @@ class DriveScanner:
     def __init__(
         self,
         gdrive_service: Optional[GoogleDriveService] = None,
-        whitelist_mgr: Optional[WhitelistManager] = None,
         web_priority_mgr: Optional[WebPriorityManager] = None
     ):
         self.gdrive_service = gdrive_service or GoogleDriveService()
         self.service = self.gdrive_service.service
-        self.whitelist_mgr = whitelist_mgr
         self.web_priority_mgr = web_priority_mgr
 
     def fetch_all_child_folders(self, root_folder_id: str) -> Dict[str, Dict[str, str]]:
@@ -313,13 +310,6 @@ class DriveScanner:
                 if excluded_story_ids and story_id in excluded_story_ids:
                     continue
 
-                # Điều kiện 0: BẮT BUỘC nằm trong danh sách Whitelist (Google Sheet)
-                meta_from_sheet = None
-                if self.whitelist_mgr:
-                    if not self.whitelist_mgr.is_whitelisted(source, story_id):
-                        continue
-                    meta_from_sheet = self.whitelist_mgr.get_story_info(source, story_id)
-
                 story_files = all_files_by_parent.get(folder_id, {})
 
                 # Điều kiện 1: Đang dịch dở (phải có cả chapters.zip và translated_chapters.zip)
@@ -340,7 +330,7 @@ class DriveScanner:
                     'files_meta': story_files,
                     'is_web_priority': False,
                     'web_meta': None,
-                    'sheet_meta': meta_from_sheet
+                    'sheet_meta': None
                 })
 
             # Sắp xếp danh sách truyện ứng viên theo tiêu chí sort_by

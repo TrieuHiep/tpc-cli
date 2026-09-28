@@ -50,21 +50,18 @@ class ParallelQueueManager:
             all_candidates.extend(candidate_stories_by_source.get(source, []))
 
         # 2. Sắp xếp ổn định (Stable Multi-tier Sorting):
-        # Tầng 3: Thứ tự nguồn trong SOURCE_PRIORITY
-        def get_source_idx(x):
-            src = x.get('source', '')
-            return SOURCE_PRIORITY.index(src) if src in SOURCE_PRIORITY else 99
-
-        all_candidates.sort(key=get_source_idx)
-
-        # Tầng 2: Thời gian sửa đổi chapters.zip (recent hoặc oldest)
+        # Tầng 2: Thời gian sửa đổi chapters.zip (recent hoặc oldest trong từng nguồn)
         if sort_by == "oldest":
             all_candidates.sort(key=lambda x: x.get('modified_time') or '', reverse=False)
         else:
             all_candidates.sort(key=lambda x: x.get('modified_time') or '', reverse=True)
 
-        # Tầng 1: Độ ưu tiên (Priority) từ Google Sheet Tab (1 = cao nhất, 2, 3...)
-        all_candidates.sort(key=lambda x: (x.get('sheet_meta') or {}).get('priority', 99))
+        # Tầng 1: Độ ưu tiên kho nguồn theo SOURCE_PRIORITY (fanqienovel là ưu tiên số 1)
+        def get_source_idx(x):
+            src = x.get('source', '')
+            return SOURCE_PRIORITY.index(src) if src in SOURCE_PRIORITY else 99
+
+        all_candidates.sort(key=get_source_idx)
 
         # Tầng 0 (Độ ưu tiên cao nhất tuyệt đối): Các bộ truyện hot được chỉ định qua CLI
         if priority_story_ids:

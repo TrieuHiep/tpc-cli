@@ -20,6 +20,7 @@ sys.path.insert(0, str(BASE_DIR / "story-translator-cli"))
 
 from app.services.gdrive import GoogleDriveService
 from new_story_translator_daemon.config import (
+    DRIVE_FOLDERS,
     TARGET_CHAPTERS_PER_STORY,
     TARGET_STORY_QUEUE_SIZE,
     MAX_PARALLEL_WORKERS,
@@ -27,7 +28,6 @@ from new_story_translator_daemon.config import (
     TEMP_NEW_DIR,
     format_chapter_ranges
 )
-from new_story_translator_daemon.whitelist_manager import WhitelistManager
 from new_story_translator_daemon.drive_new_scanner import DriveNewScanner
 from new_story_translator_daemon.remote_zip_inspector import RemoteZipInspector
 from new_story_translator_daemon.parallel_queue_manager import ParallelQueueManager
@@ -60,7 +60,7 @@ def parse_args():
     parser.add_argument("--limit-stories", type=int, default=TARGET_STORY_QUEUE_SIZE, help=f"Số lượng truyện trong hàng đợi (Mặc định: {TARGET_STORY_QUEUE_SIZE}).")
     parser.add_argument("--chapters", type=int, default=TARGET_CHAPTERS_PER_STORY, help=f"Số chương dịch cho mỗi truyện mới (Mặc định: {TARGET_CHAPTERS_PER_STORY}).")
     parser.add_argument("--sort-by", type=str, choices=["recent", "oldest"], default="recent", help="Tiêu chí sắp xếp: recent (mới nhất) hoặc oldest (cũ nhất). Mặc định: recent.")
-    parser.add_argument("--source", type=str, choices=["ixdzs8", "biquge", "truyendichwiki", "novel543"], default=None, help="Chỉ định quét riêng 1 nguồn cụ thể.")
+    parser.add_argument("--source", type=str, choices=list(DRIVE_FOLDERS.keys()), default=None, help="Chỉ định quét riêng 1 nguồn cụ thể.")
     parser.add_argument("--story-id", type=str, default=None, help='Chỉ định 1 hoặc nhiều story_id (phân cách bằng dấu phẩy: "id_A, id_B").')
     parser.add_argument("--priority-story-id", "--priority-stories", dest="priority_story_ids", type=str, default=None, help='Chỉ định 1 hoặc nhiều story_id ưu tiên dịch trước lên đầu hàng đợi (phân cách bằng dấu phẩy: "id_A, id_B").')
     parser.add_argument("--exclude-story-id", type=str, default=None, help='Chỉ định loại trừ 1 hoặc nhiều story_id (phân cách bằng dấu phẩy: "id_A, id_B").')
@@ -97,8 +97,7 @@ def main():
     try:
         notifier = TelegramNotifier()
         gdrive_service = GoogleDriveService()
-        whitelist_mgr = WhitelistManager()
-        scanner = DriveNewScanner(gdrive_service, whitelist_mgr=whitelist_mgr)
+        scanner = DriveNewScanner(gdrive_service)
 
         # Lấy token xác thực từ gdrive_service để dùng cho RemoteZipInspector
         creds = gdrive_service.service._http.credentials
@@ -149,7 +148,7 @@ def main():
         notifier.notify_skipped_stories(skipped_stories, is_dry_run=args.dry_run)
 
     if not queue:
-        print("\n☕ Không tìm thấy truyện mới nào hợp lệ chưa dịch trên Google Drive (hoặc toàn bộ truyện mới đều bị lỗi khuyết chương / chưa nằm trong Whitelist). Kết thúc.")
+        print("\n☕ Không tìm thấy truyện mới nào hợp lệ chưa dịch trên Google Drive (hoặc toàn bộ truyện mới đều bị lỗi khuyết chương). Kết thúc.")
         return
 
     # In danh sách hàng đợi
