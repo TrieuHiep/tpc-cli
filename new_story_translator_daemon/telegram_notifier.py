@@ -8,11 +8,14 @@ import html
 import urllib.request
 import urllib.error
 from typing import List, Dict, Any, Optional
-from new_story_translator_daemon.config import (
+from auto_translator_daemon.config import (
     TELEGRAM_BOT_TOKEN,
     TELEGRAM_CHAT_ID,
-    TELEGRAM_NEW_STORY_TOPIC_ID,
     format_chapter_ranges
+)
+from new_story_translator_daemon.config import (
+    TELEGRAM_NEW_STORY_TOPIC_ID,
+    TELEGRAM_ERROR_TOPIC_ID
 )
 
 class TelegramNotifier:
@@ -22,29 +25,32 @@ class TelegramNotifier:
         self,
         bot_token: str = TELEGRAM_BOT_TOKEN,
         chat_id: str = TELEGRAM_CHAT_ID,
-        topic_id: Optional[int] = TELEGRAM_NEW_STORY_TOPIC_ID
+        topic_id: Optional[int] = TELEGRAM_NEW_STORY_TOPIC_ID,
+        error_topic_id: Optional[int] = TELEGRAM_ERROR_TOPIC_ID
     ):
         self.bot_token = bot_token
         self.chat_id = chat_id
         self.topic_id = topic_id
+        self.error_topic_id = error_topic_id if error_topic_id is not None else topic_id
 
     def is_configured(self) -> bool:
         """Kiểm tra xem đã cấu hình bot token và chat id chưa."""
         return bool(self.bot_token and self.chat_id)
 
-    def send_message(self, text: str) -> bool:
-        """Gửi 1 tin nhắn định dạng HTML vào Topic chỉ định."""
+    def send_message(self, text: str, topic_id: Optional[int] = None) -> bool:
+        """Gửi 1 tin nhắn định dạng HTML vào Topic chỉ định (nếu None thì gửi vào self.topic_id)."""
         if not self.is_configured():
             return False
 
+        target_topic = topic_id if topic_id is not None else self.topic_id
         url = f"https://api.telegram.org/bot{self.bot_token}/sendMessage"
         payload = {
             "chat_id": self.chat_id,
             "text": text,
             "parse_mode": "HTML"
         }
-        if self.topic_id is not None:
-            payload["message_thread_id"] = self.topic_id
+        if target_topic is not None:
+            payload["message_thread_id"] = target_topic
 
         req = urllib.request.Request(
             url,
@@ -103,7 +109,7 @@ class TelegramNotifier:
             + more_str + "\n\n"
             f"👉 <i>Vui lòng forward danh sách này cho nhóm Crawler để kiểm tra và cào bù dữ liệu nguồn!</i>"
         )
-        self.send_message(msg)
+        self.send_message(msg, topic_id=self.error_topic_id)
 
     def notify_session_start(
         self,
@@ -218,7 +224,7 @@ class TelegramNotifier:
             f"{isolate_line}"
             f"⚠️ <i>Tiến trình đã bỏ qua bộ này và tiếp tục xử lý các truyện tiếp theo.</i>"
         )
-        self.send_message(msg)
+        self.send_message(msg, topic_id=self.error_topic_id)
 
     def notify_session_end(self, results: List[Dict[str, Any]], duration_str: str):
         """Thông báo tổng kết kết thúc ca dịch mới trong ngày."""

@@ -106,6 +106,11 @@ MAX_RETRIES = 2
 TELEGRAM_BOT_TOKEN = _env.get("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT_ID = _env.get("TELEGRAM_CHAT_ID", "")
 TELEGRAM_TOPIC_ID = int(_env.get("TELEGRAM_TOPIC_ID", 0)) if _env.get("TELEGRAM_TOPIC_ID") else None
+TELEGRAM_ERROR_TOPIC_ID = (
+    int(_env.get("TELEGRAM_ERROR_TOPIC_ID", 0))
+    if _env.get("TELEGRAM_ERROR_TOPIC_ID")
+    else None
+)
 
 # Cấu hình API truyện ưu tiên từ Web (Thịnh Phong Các)
 WEB_PRIORITY_API_URL = _env.get(

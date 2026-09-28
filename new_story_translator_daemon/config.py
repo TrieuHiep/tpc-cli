@@ -107,6 +107,11 @@ TELEGRAM_NEW_STORY_TOPIC_ID = (
     if _env.get("TELEGRAM_NEW_STORY_TOPIC_ID")
     else (int(_env.get("TELEGRAM_TOPIC_ID", 0)) if _env.get("TELEGRAM_TOPIC_ID") else None)
 )
+TELEGRAM_ERROR_TOPIC_ID = (
+    int(_env.get("TELEGRAM_ERROR_TOPIC_ID", 0))
+    if _env.get("TELEGRAM_ERROR_TOPIC_ID")
+    else None
+)
 
 
 def _find_agy_binary() -> str:
