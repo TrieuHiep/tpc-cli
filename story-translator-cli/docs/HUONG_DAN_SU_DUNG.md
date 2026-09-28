@@ -170,7 +170,7 @@ python batch_runner.py --type novel543 --mode new --workers 3 --sync-first --raw
 
 | Tham số | Dạng | Ý nghĩa & Mô tả | Mặc định |
 | :--- | :--- | :--- | :--- |
-| `--type` | `String` | **BẮT BUỘC:** Nhóm kho truyện (`truyendichwiki`, `novel543` hoặc `all`). | *(Bắt buộc)* |
+| `--type` | `String` | **BẮT BUỘC:** Nhóm kho truyện (`truyendichwiki`, `novel543`, `fanqienovel`, `biquge`, `ixdzs8` hoặc `all`). | *(Bắt buộc)* |
 | `--mode` | `String` | Mode hoạt động: `new` (dịch 200 chap đầu), `resume` (dịch nốt), `retranslate` (dịch lại từ đầu) hoặc `all`. | `new` |
 | `--stories ID1 ID2` | `List` | **Danh sách CẦN DỊCH:** Chỉ quét và dịch đúng các Story ID được chỉ định. | `None` |
 | `--stories-file PATH` | `String` | Đường dẫn file `.txt` chứa danh sách Story ID cần dịch (mỗi dòng 1 ID). | `None` |

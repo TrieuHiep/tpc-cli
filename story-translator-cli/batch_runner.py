@@ -11,6 +11,7 @@ if sys.platform == 'win32':
     sys.stderr.reconfigure(encoding='utf-8')
 
 from app.utils.logger import logger, console
+from app.services.gdrive import DRIVE_FOLDERS
 
 import zipfile
 import re
@@ -269,7 +270,7 @@ def run_batch(storage_dir: Path, repo_type: str, mode: str, target_chapters: int
         return False
 
     if repo_type.lower() == "all":
-        target_repos = ["ixdzs8", "biquge", "truyendichwiki", "novel543"]
+        target_repos = list(DRIVE_FOLDERS.keys())
     else:
         target_repos = [repo_type.lower()]
 
@@ -303,13 +304,15 @@ def run_batch(storage_dir: Path, repo_type: str, mode: str, target_chapters: int
                 if total_raw > 0 and translated_count < total_raw:
                     eligible_stories.append((sd, total_raw, translated_count))
 
-        # Sắp xếp danh sách truyện đủ điều kiện
+        repo_priority = {r: i for i, r in enumerate(target_repos)}
+
+        # Sắp xếp danh sách truyện đủ điều kiện (ưu tiên theo thứ tự nguồn/kho trước)
         if sort_by == "shortest":
-            eligible_stories.sort(key=lambda item: (item[1] if item[1] > 0 else 999999, item[0].name))
+            eligible_stories.sort(key=lambda item: (repo_priority.get(item[0].parent.name.lower(), 999), item[1] if item[1] > 0 else 999999, item[0].name))
         elif sort_by == "longest":
-            eligible_stories.sort(key=lambda item: (item[1], item[0].name), reverse=True)
+            eligible_stories.sort(key=lambda item: (repo_priority.get(item[0].parent.name.lower(), 999), -item[1], item[0].name))
         else:
-            eligible_stories.sort(key=lambda item: item[0].name)
+            eligible_stories.sort(key=lambda item: (repo_priority.get(item[0].parent.name.lower(), 999), item[0].name))
 
         if max_stories > 0:
             to_process_list = [item[0] for item in eligible_stories[:max_stories]]
@@ -359,7 +362,7 @@ def run_batch(storage_dir: Path, repo_type: str, mode: str, target_chapters: int
 
 def main():
     parser = argparse.ArgumentParser(description="Story Translator CLI - Batch Runner Multi-Worker Coordinator")
-    parser.add_argument("--type", type=str, required=True, choices=["ixdzs8", "biquge", "truyendichwiki", "novel543", "all"], help="BẮT BUỘC: Nhóm kho dataset để thực hiện dịch ('ixdzs8', 'biquge', 'truyendichwiki', 'novel543' hoặc 'all')")
+    parser.add_argument("--type", type=str, required=True, choices=list(DRIVE_FOLDERS.keys()) + ["all"], help="BẮT BUỘC: Nhóm kho dataset để thực hiện dịch (" + ", ".join(repr(k) for k in DRIVE_FOLDERS.keys()) + " hoặc 'all')")
     parser.add_argument("--mode", type=str, choices=["new", "resume", "retranslate", "all"], default="new", help="Mode hoạt động: 'new' (dịch 200 chap đầu truyện mới), 'resume' (dịch nốt các chap còn lại), 'retranslate' (dịch lại từ đầu) hoặc 'all'")
     parser.add_argument("--storage-dir", type=str, default="storage", help="Đường dẫn thư mục chứa kho dataset local (Mặc định: storage)")
     parser.add_argument("--target-chapters", type=int, default=200, help="Số chương mục tiêu cho Mode new (Mặc định: 200)")

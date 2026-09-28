@@ -16,6 +16,7 @@ from app.utils.logger import logger
 SCOPES = ['https://www.googleapis.com/auth/drive']
 
 DRIVE_FOLDERS = {
+    "fanqienovel": "1r7-H989laoUtlYwOhgYNfoPcK9oNemwz",
     "ixdzs8": "1biCwkUl5IT1R0C-CrZsRpgQkFAX-vE3c",
     "biquge": "1AsGs4ORz6pKR2kYLxInOkOsF0jqcvm9J",
     "truyendichwiki": "1c1W2OYlO8s06DVK3PkLPbi8hkdynGLrc",
@@ -82,8 +83,8 @@ class GoogleDriveService:
         story_id = dataset_dir.name
         parent_name = dataset_dir.parent.name.lower()
 
-        repo_key = "truyendichwiki"
-        root_folder_id = DRIVE_FOLDERS["truyendichwiki"]
+        repo_key = "fanqienovel"
+        root_folder_id = DRIVE_FOLDERS["fanqienovel"]
 
         for key, folder_id in DRIVE_FOLDERS.items():
             if key in parent_name:
