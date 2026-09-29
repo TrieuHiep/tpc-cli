@@ -64,7 +64,7 @@ class ChapterInspector:
 
         return True, "OK"
 
-    def inspect_story_remotely(self, story_info: Dict[str, Any]) -> Dict[str, Any]:
+    def inspect_story_remotely(self, story_info: Dict[str, Any], skip_stories_over: Optional[int] = None) -> Dict[str, Any]:
         """
         Thẩm định diff chương hoàn toàn từ xa qua RAM (Zero Disk Usage):
         - Đọc mục lục chapters.zip qua Range Request.
@@ -83,6 +83,15 @@ class ChapterInspector:
         if raw_chaps is None:
             return {'is_valid': False, 'reason': f'Lỗi kết nối khi đọc chapters.zip của {story_id}'}
         raw_nums = sorted(list(raw_chaps.keys()))
+
+        # 1.5. Lọc bỏ qua các bộ truyện có tổng số chương raw vượt quá ngưỡng skip_stories_over
+        if skip_stories_over and len(raw_nums) > skip_stories_over:
+            return {
+                'is_valid': False,
+                'is_too_long': True,
+                'raw_chapters_count': len(raw_nums),
+                'reason': f"Tổng số chương raw ({len(raw_nums)}) vượt quá ngưỡng {skip_stories_over} chương"
+            }
 
         # 2. Bắt buộc kiểm tra tính toàn vẹn và tuần tự trên TOÀN BỘ file raw (từ chương 1 đến hết)
         is_seq, seq_reason = self.check_sequential(raw_nums)

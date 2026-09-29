@@ -8,10 +8,11 @@ from auto_translator_daemon.config import DAILY_CHAPTER_LIMIT, BOUNDARY_STRATEGY
 class QueueManager:
     """Xây dựng hàng đợi dịch theo cơ chế Lazy Streaming & Early Stop."""
 
-    def __init__(self, limit: int = DAILY_CHAPTER_LIMIT, strategy: str = BOUNDARY_STRATEGY, max_per_story: int = MAX_CHAPTERS_PER_STORY):
+    def __init__(self, limit: int = DAILY_CHAPTER_LIMIT, strategy: str = BOUNDARY_STRATEGY, max_per_story: int = MAX_CHAPTERS_PER_STORY, skip_stories_over: Optional[int] = None):
         self.limit = limit
         self.strategy = strategy
         self.max_per_story = max_per_story
+        self.skip_stories_over = skip_stories_over
 
     def build_lazy_queue(
         self,
@@ -76,11 +77,13 @@ class QueueManager:
             priority = sheet_meta.get('priority', 99)
 
             # 1. Thẩm định mục lục zip từ xa qua RAM (0 byte ghi xuống ổ cứng)
-            inspected = chapter_inspector.inspect_story_remotely(s_info)
+            inspected = chapter_inspector.inspect_story_remotely(s_info, skip_stories_over=self.skip_stories_over)
 
             if not inspected.get('is_valid', False):
                 reason = inspected.get('reason', 'Không hợp lệ')
-                if inspected.get('is_gap'):
+                if inspected.get('is_too_long'):
+                    print(f"  ⏭️ [{story_id}]{badge_str}: {reason}")
+                elif inspected.get('is_gap'):
                     print(f"  ❌ [{story_id}]{badge_str} [SKIP - NHẢY CÓC]: {reason}")
                     title = sheet_meta.get('title') or story_id
                     skipped_stories.append({

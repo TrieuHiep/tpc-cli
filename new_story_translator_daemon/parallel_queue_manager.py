@@ -18,10 +18,12 @@ class ParallelQueueManager:
     def __init__(
         self,
         queue_size: int = TARGET_STORY_QUEUE_SIZE,
-        target_chapters: int = TARGET_CHAPTERS_PER_STORY
+        target_chapters: int = TARGET_CHAPTERS_PER_STORY,
+        skip_stories_over: Optional[int] = None
     ):
         self.queue_size = queue_size
         self.target_chapters = target_chapters
+        self.skip_stories_over = skip_stories_over
 
     def build_queue(
         self,
@@ -97,6 +99,11 @@ class ParallelQueueManager:
             raw_nums = sorted(list(raw_chaps.keys()))
             if not raw_nums:
                 print(f"  ⚠️ [{story_id}]{badge_str}: chapters.zip rỗng hoặc không tìm thấy content.txt. Bỏ qua.")
+                continue
+
+            # Bỏ qua truyện quá dài nếu cấu hình skip_stories_over
+            if self.skip_stories_over and len(raw_nums) > self.skip_stories_over:
+                print(f"  ⏭️ [{story_id}]{badge_str}: Tổng số chương raw ({len(raw_nums)}) > {self.skip_stories_over}. Bỏ qua truyện quá dài.")
                 continue
 
             # Kiểm tra tính toàn vẹn trên TOÀN BỘ file raw (Full Raw Sequential Integrity):

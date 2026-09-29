@@ -64,6 +64,7 @@ def parse_args():
     parser.add_argument("--story-id", type=str, default=None, help='Chỉ định 1 hoặc nhiều story_id (phân cách bằng dấu phẩy: "id_A, id_B").')
     parser.add_argument("--priority-story-id", "--priority-stories", dest="priority_story_ids", type=str, default=None, help='Chỉ định 1 hoặc nhiều story_id ưu tiên dịch trước lên đầu hàng đợi (phân cách bằng dấu phẩy: "id_A, id_B").')
     parser.add_argument("--exclude-story-id", type=str, default=None, help='Chỉ định loại trừ 1 hoặc nhiều story_id (phân cách bằng dấu phẩy: "id_A, id_B").')
+    parser.add_argument("--skip-stories-over", type=int, default=None, help="Bỏ qua các bộ truyện có tổng số chương raw vượt quá ngưỡng này (ví dụ: 1000).")
     parser.add_argument("--no-upload", action="store_true", help="Bỏ qua bước upload lên Google Drive (dùng cho chạy thử nghiệm an toàn).")
     parser.add_argument("--timeout", type=float, default=TIMEOUT_HOURS, help=f"Timeout tối đa cho mỗi mẻ AGY CLI tính theo giờ (Mặc định: {TIMEOUT_HOURS}h).")
     return parser.parse_args()
@@ -84,7 +85,8 @@ def main():
 
     print("=" * 75)
     print(f"🆕 NEW STORY TRANSLATOR DAEMON KHỞI ĐỘNG: {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
-    print(f"⚙️ Cấu hình: Hàng đợi = {args.limit_stories} truyện | Mỗi truyện = {args.chapters} chaps | Song song = {args.workers} workers | Dry-run = {args.dry_run}")
+    skip_over_str = f" | Bỏ qua > {args.skip_stories_over} chaps" if args.skip_stories_over else ""
+    print(f"⚙️ Cấu hình: Hàng đợi = {args.limit_stories} truyện | Mỗi truyện = {args.chapters} chaps | Song song = {args.workers} workers{skip_over_str} | Dry-run = {args.dry_run}")
     if target_story_ids:
         print(f"🎯 Chỉ định duy nhất {len(target_story_ids)} story_id: {', '.join(target_story_ids)}")
     if priority_story_ids:
@@ -108,7 +110,8 @@ def main():
 
         queue_mgr = ParallelQueueManager(
             queue_size=args.limit_stories,
-            target_chapters=args.chapters
+            target_chapters=args.chapters,
+            skip_stories_over=args.skip_stories_over
         )
     except Exception as e:
         print(f"❌ Khởi tạo dịch vụ thất bại: {e}")

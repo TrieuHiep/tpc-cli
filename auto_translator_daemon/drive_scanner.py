@@ -98,7 +98,8 @@ class DriveScanner:
         limit: int = 100,
         strategy: str = "SPLIT",
         max_per_story: int = 0,
-        priority_story_ids: Optional[List[str]] = None
+        priority_story_ids: Optional[List[str]] = None,
+        skip_stories_over: Optional[int] = None
     ) -> Tuple[List[Dict[str, Any]], int, Set[str]]:
         """
         Chặng 1: Xử lý Fast-Path các truyện ưu tiên từ Web API theo driveUrl (Folder ID).
@@ -194,10 +195,12 @@ class DriveScanner:
             }
 
             # 3. Thẩm định mục lục zip từ xa qua RAM (Zero Disk Usage)
-            inspected = chapter_inspector.inspect_story_remotely(s_info)
+            inspected = chapter_inspector.inspect_story_remotely(s_info, skip_stories_over=skip_stories_over)
             if not inspected.get('is_valid', False):
                 reason = inspected.get('reason', 'Không hợp lệ')
-                if inspected.get('is_gap'):
+                if inspected.get('is_too_long'):
+                    print(f"  ⏭️ [{story_id}] ⭐ [ƯU TIÊN WEB]: {reason}. Bỏ qua truyện quá dài.")
+                elif inspected.get('is_gap'):
                     print(f"  ❌ [{story_id}] ⭐ [ƯU TIÊN WEB] [SKIP - NHẢY CÓC]: {reason}")
                     title = item.get('name') or item.get('title') or story_id
                     skipped_stories.append({

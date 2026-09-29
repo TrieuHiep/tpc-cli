@@ -26,6 +26,7 @@ ARGS=(
     # --source truyendichwiki    # Quét riêng 1 nguồn: ixdzs8, biquge, truyendichwiki, novel543
     # --story-id "id_A, id_B"             # Chỉ định 1 hoặc nhiều story_id phân cách bằng dấu phẩy
     # --exclude-story-id "id_C, id_D"     # Bỏ qua 1 hoặc nhiều story_id phân cách bằng dấu phẩy
+    # --skip-stories-over 1000  # Bỏ qua các bộ truyện quá dài (> 1000 chương raw)
     # --no-upload               # Bỏ qua upload Google Drive (chạy thử nghiệm)
     # --dry-run                 # Chỉ mô phỏng quét RAM, không tải file, không dịch
 )

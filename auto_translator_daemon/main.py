@@ -73,6 +73,7 @@ def parse_args():
     parser.add_argument("--story-id", type=str, default=None, help='Chỉ định 1 hoặc nhiều story_id (phân cách bằng dấu phẩy: "id_A, id_B").')
     parser.add_argument("--priority-story-id", "--priority-stories", dest="priority_story_ids", type=str, default=None, help='Chỉ định 1 hoặc nhiều story_id ưu tiên dịch trước lên đầu hàng đợi (phân cách bằng dấu phẩy: "id_A, id_B").')
     parser.add_argument("--exclude-story-id", type=str, default=None, help='Chỉ định loại trừ 1 hoặc nhiều story_id (phân cách bằng dấu phẩy: "id_A, id_B").')
+    parser.add_argument("--skip-stories-over", type=int, default=None, help="Bỏ qua các bộ truyện có tổng số chương raw vượt quá ngưỡng này (ví dụ: 1000).")
     parser.add_argument("--no-upload", action="store_true", help="Bỏ qua bước upload/đồng bộ lên Google Drive (dùng cho chạy thử nghiệm an toàn).")
     return parser.parse_args()
 
@@ -96,7 +97,8 @@ def main():
 
     print("=" * 70)
     print(f"🤖 AUTO TRANSLATOR DAEMON KHỞI ĐỘNG: {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
-    print(f"⚙️ Cấu hình: Hạn mức = {args.chapters} chaps | Max/Truyện = {max_per_story if max_per_story > 0 else 'Không giới hạn'} | Song song = {args.workers} workers | Sắp xếp = {args.sort_by} | Chiến lược = {args.strategy} | Timeout = {args.timeout}h | Dry-run = {args.dry_run}")
+    skip_over_str = f" | Bỏ qua > {args.skip_stories_over} chaps" if args.skip_stories_over else ""
+    print(f"⚙️ Cấu hình: Hạn mức = {args.chapters} chaps | Max/Truyện = {max_per_story if max_per_story > 0 else 'Không giới hạn'} | Song song = {args.workers} workers | Sắp xếp = {args.sort_by} | Chiến lược = {args.strategy} | Timeout = {args.timeout}h{skip_over_str} | Dry-run = {args.dry_run}")
     if target_story_ids:
         print(f"🎯 Chỉ định duy nhất {len(target_story_ids)} story_id: {', '.join(target_story_ids)}")
     if priority_story_ids:
@@ -123,7 +125,7 @@ def main():
             web_priority_mgr=web_priority_mgr
         )
         inspector = ChapterInspector(gdrive_service)
-        queue_mgr = QueueManager(limit=args.chapters, strategy=args.strategy, max_per_story=max_per_story)
+        queue_mgr = QueueManager(limit=args.chapters, strategy=args.strategy, max_per_story=max_per_story, skip_stories_over=args.skip_stories_over)
         agy_runner = AGYRunner(timeout_hours=args.timeout)
         qc_validator = QCValidator()
         syncer = DriveSyncer(gdrive_service)
@@ -149,7 +151,8 @@ def main():
                 limit=args.chapters,
                 strategy=args.strategy,
                 max_per_story=max_per_story,
-                priority_story_ids=priority_story_ids
+                priority_story_ids=priority_story_ids,
+                skip_stories_over=args.skip_stories_over
             )
             all_skipped_stories.extend(web_skipped)
             web_priority_mgr.priority_stories = orig_stories
@@ -163,7 +166,8 @@ def main():
             limit=args.chapters,
             strategy=args.strategy,
             max_per_story=max_per_story,
-            priority_story_ids=priority_story_ids
+            priority_story_ids=priority_story_ids,
+            skip_stories_over=args.skip_stories_over
         )
         all_skipped_stories.extend(web_skipped)
         if excluded_story_ids:
