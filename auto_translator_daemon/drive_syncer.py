@@ -13,10 +13,11 @@ class DriveSyncer:
     def __init__(self, gdrive_service):
         self.gdrive_service = gdrive_service
 
-    def repack_translated_chapters(self, story_dir: Path) -> Optional[Path]:
+    def repack_translated_chapters(self, story_dir: Path, expected_total_chapters: Optional[int] = None) -> Optional[Path]:
         """
         Quét toàn bộ thư mục chapters/ và đóng gói tất cả các chương có content_vi.txt
         (bao gồm cả content_vi.txt và bản gốc content.txt) vào translated_chapters.zip.
+        Nếu truyền expected_total_chapters, sẽ từ chối đóng gói nếu số lượng file không khớp chính xác.
         """
         chapters_dir = story_dir / "chapters"
         if not chapters_dir.exists():
@@ -43,6 +44,12 @@ class DriveSyncer:
 
             if count == 0:
                 print(f"⚠️ Không tìm thấy file content_vi.txt nào để đóng gói trong {chapters_dir}")
+                if temp_zip.exists():
+                    temp_zip.unlink()
+                return None
+
+            if expected_total_chapters is not None and count != expected_total_chapters:
+                print(f"🛑 [DriveSyncer] TỪ CHỐI ĐÓNG GÓI: Số lượng file content_vi.txt ({count}) không khớp kỳ vọng ({expected_total_chapters})!")
                 if temp_zip.exists():
                     temp_zip.unlink()
                 return None
@@ -75,7 +82,8 @@ class DriveSyncer:
         self,
         story_info: Dict[str, Any],
         story_dir: Path,
-        translated_chapters: List[int]
+        translated_chapters: List[int],
+        expected_total_chapters: Optional[int] = None
     ) -> bool:
         """
         Đồng bộ toàn bộ sản phẩm dịch của bộ truyện lên Google Drive:
@@ -89,7 +97,7 @@ class DriveSyncer:
         print(f"\n☁️ [{story_id}] Bắt đầu đồng bộ dữ liệu lên Google Drive (Folder ID: {story_folder_id})...")
 
         # 1. Đóng gói zip mới
-        zip_path = self.repack_translated_chapters(story_dir)
+        zip_path = self.repack_translated_chapters(story_dir, expected_total_chapters=expected_total_chapters)
         if not zip_path:
             print(f"❌ [{story_id}] Không tạo được file translated_chapters.zip để đồng bộ!")
             return False

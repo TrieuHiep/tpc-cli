@@ -111,3 +111,59 @@ class QCValidator:
             })
 
         return all_passed, results
+
+    def validate_total_chapters_integrity(
+        self,
+        chapters_dir,
+        initial_count: int,
+        new_chaps_count: int,
+        initial_files: set = None,
+        story_dir = None
+    ) -> Tuple[bool, str, Dict[str, Any]]:
+        """
+        Kiểm tra tổng số lượng luỹ tiến (Total Chapters Integrity Check):
+        Đếm tổng số file content_vi.txt thực tế trong thư mục chapters/.
+        Đối chiếu với công thức:
+        tổng file content_vi.txt = Số chương cũ (S_old) + Số chương mới giao dịch (|chaps|)
+
+        Trả về: (is_passed: bool, reason: str, stats: dict)
+        """
+        from pathlib import Path
+        c_dir = Path(chapters_dir)
+        actual_files = [
+            f for f in c_dir.rglob("content_vi.txt")
+            if f.is_file() and f.stat().st_size > 0
+        ]
+        actual_count = len(actual_files)
+        expected_count = initial_count + new_chaps_count
+
+        stats = {
+            'initial_old_count': initial_count,
+            'new_chaps_count': new_chaps_count,
+            'expected_total': expected_count,
+            'actual_total': actual_count
+        }
+
+        # 1. Kiểm tra sự tồn tại của các file chương cũ (nếu có cung cấp initial_files)
+        if initial_files and story_dir:
+            s_dir = Path(story_dir)
+            missing_old = []
+            for rel_path in initial_files:
+                full_path = s_dir / rel_path
+                if not full_path.exists() or full_path.stat().st_size == 0:
+                    missing_old.append(str(rel_path).replace('\\', '/'))
+            if missing_old:
+                sample_missing = ", ".join(missing_old[:5])
+                reason = f"Phát hiện {len(missing_old)} file chương cũ đã bị mất hoặc rỗng (Mẫu: {sample_missing})"
+                return False, reason, stats
+
+        # 2. Đối chiếu số lượng: tổng file content_vi.txt == S_old + |chaps|
+        if actual_count != expected_count:
+            reason = (
+                f"Tổng số file content_vi.txt không khớp: Thực tế có {actual_count} file, "
+                f"kỳ vọng {expected_count} file ({initial_count} cũ + {new_chaps_count} mới)!"
+            )
+            return False, reason, stats
+
+        return True, f"PASSED ✅ (Khớp chính xác {actual_count}/{expected_count} file)", stats
+
