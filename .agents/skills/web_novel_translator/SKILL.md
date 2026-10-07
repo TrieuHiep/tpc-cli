@@ -79,6 +79,7 @@ Khi cấu hình `translator_subagent` hoặc gửi prompt dịch thuật, **BẮ
    - **Bắt buộc dịch ra bản chất hành động thực tế:** Ăn giấm $\rightarrow$ Ghen tuông; Hương bánh trái $\rightarrow$ Nhân tài đắt giá / Đối tượng săn đón; Ăn đậu phụ $\rightarrow$ Sàm sỡ / Trêu ghẹo; Đào góc tường $\rightarrow$ Giật bồ / Cướp người; Ôm đùi $\rightarrow$ Dựa dẫm đại gia.
 4. **Dịch Theo Ý Nghĩa, Tự Do Cấu Trúc Câu (Sense-for-Sense Translation):**
    - Hoàn toàn thả tự do cấu trúc câu, tự do ngắt nghỉ, đảo ngữ pháp, viết lại câu văn để đạt độ mượt mà, trôi chảy và giàu chất văn học hiện đại.
+   - Nhân vật nhất quán và xưng hô phù hợp hoàn cảnh
 5. **Bảo Toàn Dung Lượng & Anti-Abridgment Mandate (CẤM TÓM TẮT TUYỆT ĐỐI):**
    - Dịch toàn văn 100% bám sát tình tiết gốc (Full Verbatim Narrative Translation). Việc "biên tập mượt mà" TUYỆT ĐỐI KHÔNG ĐỒNG NGHĨA với "lược bỏ hay tóm tắt".
    - CẤM TUYỆT ĐỐI tóm tắt diễn biến, cấm gộp đoạn tùy tiện, cấm bỏ sót lời thoại, miêu tả tâm lý hay bối cảnh. Ràng buộc định lượng: Tỷ lệ ký tự Vi/Zh bắt buộc $\ge 1.2$, số từ tiếng Việt phải đạt từ 1.500 – 3.500 từ/chương (tương đương số chữ Hán raw). Bất kỳ chương nào dưới 1.000 từ hoặc Vi/Zh < 1.0 đều là lỗi phế phẩm nghiêm trọng!
