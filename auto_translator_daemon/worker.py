@@ -187,16 +187,18 @@ def process_single_resume_story(
     if ws_story_name and ws_story_name != story_id:
         story_title = ws_story_name
 
-    # Ghi nhận số lượng chương cũ đã có trước khi dịch (S_old) từ thư mục chapters/
+    # Ghi nhận snapshot SHA-256 các chương cũ đã có trước khi dịch (S_old) từ thư mục chapters/
     chapters_dir = temp_story_dir / "chapters"
-    initial_vi_files = {
-        f.relative_to(temp_story_dir)
-        for f in chapters_dir.rglob("content_vi.txt")
-        if f.is_file() and f.stat().st_size > 0
-    }
-    initial_vi_count = len(initial_vi_files)
+    initial_vi_snapshot = qc_validator.create_chapters_snapshot(temp_story_dir)
+    initial_vi_count = len(initial_vi_snapshot)
     expected_total_count = initial_vi_count + len(chaps)
-    print(f"📊 [{story_id}] Ghi nhận {initial_vi_count} chương đã dịch trước đó (S_old). Kỳ vọng sau khi hoàn thành: {expected_total_count} chương.")
+    print(f"📊 [{story_id}] Ghi nhận snapshot SHA-256 cho {initial_vi_count} chương đã dịch trước đó (S_old). Kỳ vọng sau khi hoàn thành: {expected_total_count} chương.")
+    try:
+        (temp_story_dir / ".pre_translate_snapshot.json").write_text(
+            json.dumps(initial_vi_snapshot, indent=2), encoding='utf-8'
+        )
+    except Exception:
+        pass
 
     pre_checker = PreTranslateValidator(timeout_minutes=5)
     pre_ok, check_data = pre_checker.validate_story(temp_story_dir, chaps, item['story_info'])
@@ -286,13 +288,13 @@ def process_single_resume_story(
 
     print(f"✅ [{story_id}] Toàn bộ {len(chaps)} chương ĐẠT 100% chuẩn QC!")
 
-    # 3.5. Kiểm tra tổng số lượng luỹ tiến (Total Chapters Integrity Check)
-    print(f"\n🛡️ [{story_id}] Đang kiểm tra tổng số lượng luỹ tiến (Total Chapters Integrity Check)...")
+    # 3.5. Kiểm tra tổng số lượng luỹ tiến và tính bất biến (Total Chapters & Immutability Check)
+    print(f"\n🛡️ [{story_id}] Đang kiểm tra tổng số lượng luỹ tiến và mã băm bất biến (Total Chapters & Immutability Check)...")
     integrity_passed, integrity_reason, integrity_stats = qc_validator.validate_total_chapters_integrity(
         chapters_dir=chapters_dir,
         initial_count=initial_vi_count,
         new_chaps_count=len(chaps),
-        initial_files=initial_vi_files,
+        initial_snapshot=initial_vi_snapshot,
         story_dir=temp_story_dir
     )
 

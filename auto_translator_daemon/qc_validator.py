@@ -5,8 +5,18 @@ Module hậu kiểm chất lượng (QC) bản dịch:
 3. Kiểm tra tỷ lệ dung lượng chống cắt gọt / tóm tắt so với bản gốc.
 """
 import re
-from typing import Tuple, Dict, Any, List
+import hashlib
+from pathlib import Path
+from typing import Tuple, Dict, Any, List, Optional, Union
 from auto_translator_daemon.config import MIN_TRANSLATION_RATIO, MIN_TRANSLATION_WORDS
+
+def compute_file_sha256(file_path: Union[str, Path]) -> str:
+    """Tính mã băm SHA-256 của file nhị phân (an toàn bộ nhớ bằng chunk 64KB)."""
+    hasher = hashlib.sha256()
+    with open(file_path, 'rb') as f:
+        while chunk := f.read(65536):
+            hasher.update(chunk)
+    return hasher.hexdigest()
 
 class QCValidator:
     """Kiểm duyệt chất lượng bản dịch độc lập trước khi upload lên Drive."""
@@ -112,23 +122,40 @@ class QCValidator:
 
         return all_passed, results
 
+    def create_chapters_snapshot(self, story_dir: Union[str, Path]) -> Dict[str, str]:
+        """
+        Quét toàn bộ thư mục chapters/ và tính mã băm SHA-256 cho tất cả các file content_vi.txt hiện có.
+        Trả về dict: { "chapters/.../content_vi.txt": "sha256_hex", ... }
+        """
+        story_path = Path(story_dir)
+        chapters_dir = story_path / "chapters"
+        if not chapters_dir.exists():
+            return {}
+
+        snapshot: Dict[str, str] = {}
+        for vi_file in chapters_dir.rglob("content_vi.txt"):
+            if vi_file.is_file() and vi_file.stat().st_size > 0:
+                rel_path = str(vi_file.relative_to(story_path)).replace('\\', '/')
+                snapshot[rel_path] = compute_file_sha256(vi_file)
+        return snapshot
+
     def validate_total_chapters_integrity(
         self,
         chapters_dir,
         initial_count: int,
         new_chaps_count: int,
-        initial_files: set = None,
+        initial_files: Optional[Any] = None,
+        initial_snapshot: Optional[Dict[str, str]] = None,
         story_dir = None
     ) -> Tuple[bool, str, Dict[str, Any]]:
         """
-        Kiểm tra tổng số lượng luỹ tiến (Total Chapters Integrity Check):
-        Đếm tổng số file content_vi.txt thực tế trong thư mục chapters/.
-        Đối chiếu với công thức:
-        tổng file content_vi.txt = Số chương cũ (S_old) + Số chương mới giao dịch (|chaps|)
+        Kiểm tra tổng số lượng luỹ tiến và tính bất biến (Total Chapters & Immutability Integrity Check):
+        1. Kiểm tra 100% các file chương cũ (S_old) không bị xóa hoặc làm rỗng.
+        2. Nếu có snapshot mã băm SHA-256, kiểm tra tính bất biến (không bị LLM sửa đổi nội dung dù chỉ 1 ký tự).
+        3. Đối chiếu số lượng: tổng file content_vi.txt = Số chương cũ (S_old) + Số chương mới giao dịch (|chaps|).
 
         Trả về: (is_passed: bool, reason: str, stats: dict)
         """
-        from pathlib import Path
         c_dir = Path(chapters_dir)
         actual_files = [
             f for f in c_dir.rglob("content_vi.txt")
@@ -144,17 +171,39 @@ class QCValidator:
             'actual_total': actual_count
         }
 
-        # 1. Kiểm tra sự tồn tại của các file chương cũ (nếu có cung cấp initial_files)
-        if initial_files and story_dir:
+        # Xác định nguồn snapshot mã băm hoặc danh sách file cũ
+        snapshot_to_check = initial_snapshot if initial_snapshot is not None else (initial_files if isinstance(initial_files, dict) else None)
+        files_to_check = snapshot_to_check.keys() if snapshot_to_check is not None else (initial_files or [])
+
+        # 1. Kiểm tra sự tồn tại và tính bất biến của các file chương cũ
+        if files_to_check and story_dir:
             s_dir = Path(story_dir)
             missing_old = []
-            for rel_path in initial_files:
+            modified_old = []
+
+            for rel_path in files_to_check:
                 full_path = s_dir / rel_path
                 if not full_path.exists() or full_path.stat().st_size == 0:
                     missing_old.append(str(rel_path).replace('\\', '/'))
+                    continue
+
+                # Kiểm tra mã băm SHA-256 nếu có snapshot
+                if snapshot_to_check and rel_path in snapshot_to_check:
+                    expected_hash = snapshot_to_check[rel_path]
+                    actual_hash = compute_file_sha256(full_path)
+                    if actual_hash != expected_hash:
+                        modified_old.append(
+                            f"{str(rel_path).replace('\\', '/')} (Hash cũ: {expected_hash[:8]}... ➔ Mới: {actual_hash[:8]}...)"
+                        )
+
             if missing_old:
                 sample_missing = ", ".join(missing_old[:5])
                 reason = f"Phát hiện {len(missing_old)} file chương cũ đã bị mất hoặc rỗng (Mẫu: {sample_missing})"
+                return False, reason, stats
+
+            if modified_old:
+                sample_modified = "; ".join(modified_old[:3])
+                reason = f"Phát hiện {len(modified_old)} file chương cũ đã bị sửa đổi trái phép (Mẫu: {sample_modified})"
                 return False, reason, stats
 
         # 2. Đối chiếu số lượng: tổng file content_vi.txt == S_old + |chaps|
@@ -165,5 +214,5 @@ class QCValidator:
             )
             return False, reason, stats
 
-        return True, f"PASSED ✅ (Khớp chính xác {actual_count}/{expected_count} file)", stats
+        return True, f"PASSED ✅ (Khớp chính xác {actual_count}/{expected_count} file, 100% chương cũ nguyên vẹn)", stats
 

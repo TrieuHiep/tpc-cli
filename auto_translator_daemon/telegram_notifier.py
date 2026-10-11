@@ -82,7 +82,7 @@ class TelegramNotifier:
             f"📝 <b>Chi tiết:</b> {message}\n\n"
             f"{status_line}"
         )
-        self.send_message(msg)
+        self.send_message(msg, topic_id=self.error_topic_id)
 
     def notify_skipped_stories(self, skipped_stories: List[Dict[str, Any]], is_dry_run: bool = False):
         """Cảnh báo ngay lập tức danh sách các bộ truyện bị loại do khuyết chương / nhảy cóc (bất kể có dry-run hay không)."""
@@ -190,7 +190,8 @@ class TelegramNotifier:
                 f"{isolate_line}\n\n"
                 f"⚠️ <i>Hệ thống đã tự động từ chối dịch mẻ này để tránh lãng phí chi phí AI và chuyển sang truyện tiếp theo.</i>"
             )
-        self.send_message(msg)
+        target_topic = self.topic_id if allowed else self.error_topic_id
+        self.send_message(msg, topic_id=target_topic)
 
     def notify_story_success(
         self,
