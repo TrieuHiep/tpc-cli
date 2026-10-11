@@ -18,12 +18,18 @@ class ChapterInspector:
         self.gdrive_service = gdrive_service
         self.service = self.gdrive_service.service
         
-        # Khởi tạo RemoteZipInspector với token OAuth
-        creds = self.service._http.credentials
-        if not creds.valid:
-            from google.auth.transport.requests import Request
-            creds.refresh(Request())
-        self.remote_inspector = RemoteZipInspector(auth_token=creds.token)
+        # Khởi tạo RemoteZipInspector với credentials để tự động refresh token
+        creds = getattr(self.service._http, 'credentials', None)
+        if creds and not creds.valid:
+            try:
+                from google.auth.transport.requests import Request
+                creds.refresh(Request())
+            except Exception:
+                pass
+        self.remote_inspector = RemoteZipInspector(
+            auth_token=creds.token if creds else "",
+            credentials=creds
+        )
 
     def download_file_to_path(self, file_id: str, dest_path: Path) -> bool:
         """Tải một file từ Google Drive về đường dẫn cục bộ."""

@@ -16,6 +16,7 @@ from googleapiclient.http import MediaIoBaseDownload
 
 from new_story_translator_daemon.config import TEMP_NEW_DIR, TEMP_FAILED_DIR, format_chapter_ranges
 from new_story_translator_daemon.agy_runner import AGYRunner
+from new_story_translator_daemon.pre_translate_validator import PreTranslateValidator
 from new_story_translator_daemon.qc_validator import QCValidator
 from new_story_translator_daemon.drive_syncer import DriveSyncer
 from new_story_translator_daemon.telegram_notifier import TelegramNotifier
@@ -157,6 +158,59 @@ def process_single_new_story(
     ws_story_name = agy_runner.prepare_local_workspace(temp_story_dir)
     if ws_story_name and ws_story_name != story_id:
         title = ws_story_name
+
+    chaps_range_label = format_chapter_ranges(chaps, arrow="➔")
+
+    # 1.5. Thẩm định ngữ nghĩa dữ liệu truyện mới bằng AGY CLI trước khi cấp phép dịch (Pre-Translate Sanity Check)
+    print(f"\n🕵️ [{story_id}] Đang thẩm định ngữ nghĩa dữ liệu truyện mới (Pre-Translate Sanity Check)...")
+    pre_checker = PreTranslateValidator(timeout_minutes=5)
+    pre_ok, check_data = pre_checker.validate_story(temp_story_dir, chaps, item['story_info'])
+
+    allowed_to_translate = check_data.get('allowed_to_translate', False)
+    validation_case = check_data.get('validation_case', 'UNKNOWN')
+    detected_genre = check_data.get('detected_genre', '')
+    suggested_pronouns = check_data.get('suggested_pronouns', '')
+    is_complete_story = check_data.get('is_complete', False)
+    is_short_story = check_data.get('is_short_story', False)
+    report_brief = check_data.get('report_brief', 'Không có báo cáo chi tiết.')
+
+    # Gửi thông báo Telegram kết quả thẩm định
+    notifier.notify_pre_check_result(
+        story_id=story_id,
+        chapters_count=len(chaps),
+        chaps_range=chaps_range_label,
+        allowed=allowed_to_translate,
+        report_brief=report_brief,
+        validation_case=validation_case,
+        detected_genre=detected_genre,
+        suggested_pronouns=suggested_pronouns,
+        is_complete=is_complete_story,
+        is_short_story=is_short_story,
+        isolated_path=f"storage/temp_failed/{story_id}" if not allowed_to_translate else None,
+        source=source,
+        title=title,
+        folder_id=folder_id
+    )
+
+    if not allowed_to_translate:
+        print(f"❌ [{story_id}] THẨM ĐỊNH KHÔNG ĐẠT ({validation_case}): Từ chối dịch truyện này!")
+        print(f"   📝 Báo cáo lỗi: {report_brief}")
+        isolate_failed_story(temp_story_dir, story_id)
+        return {
+            'story_id': story_id,
+            'chapters': len(chaps),
+            'agy_status': f'REJECTED ({validation_case}) ❌',
+            'qc_status': 'SKIPPED',
+            'sync_status': 'BLOCKED 🛑',
+            'duration': str(datetime.now() - story_start).split('.')[0]
+        }
+
+    print(f"✅ [{story_id}] THẨM ĐỊNH THÀNH CÔNG ({validation_case}): Được phép tiến hành dịch!")
+    if detected_genre:
+        print(f"   🏷️ Thể loại nhận diện: {detected_genre}")
+    if suggested_pronouns:
+        print(f"   🗣️ Xưng hô định hình: {suggested_pronouns}")
+    print(f"   📝 Đánh giá: {report_brief}")
 
     # 2. Chạy AGY CLI
     success = agy_runner.run_translation(temp_story_dir, chaps)

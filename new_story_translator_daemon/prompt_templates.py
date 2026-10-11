@@ -148,3 +148,101 @@ def build_new_story_review_prompt(
         chapters_str=chapters_str
     )
 
+
+# Mẫu prompt chuẩn cho AGY CLI tiền thẩm định ngữ nghĩa truyện mới (Pre-Translate Sanity Check)
+DEFAULT_NEW_STORY_PRE_TRANSLATE_PROMPT_TEMPLATE = (
+    "Bạn là Chuyên gia Thẩm định Ngữ nghĩa Dữ liệu Truyện Tiếng Trung & Tiếng Việt.\n"
+    "Thư mục làm việc của bộ truyện: `{story_dir}`.\n\n"
+    "THÔNG TIN ĐỢT KHỞI TẠO BỘ TRUYỆN MỚI:\n"
+    "- Mã truyện: `{story_id}`\n"
+    "- Dải chương dự kiến dịch: Từ Chương {start_chap} đến Chương {end_chap} (Tổng {num_chapters} chương: {chapters_range})\n"
+    "- Danh sách các chương lấy mẫu thẩm định: {sample_chapters_str}\n\n"
+    "NHIỆM VỤ CỦA BẠN:\n"
+    "Hãy đọc skill /dich_truyen_web, sử dụng công cụ view_file để tự mở và đọc các file cần thiết trong thư mục:\n"
+    "1. Đọc file `info.json` (nếu có) để nắm Tên truyện, Tác giả, Thể loại (genres/tags/category), và Văn án/Tóm tắt (description/intro).\n"
+    "2. Đọc mở đầu các chương khởi động: `chapters/1/content.txt`, `chapters/2/content.txt`, `chapters/3/content.txt` (hoặc thư mục dạng chap_X).\n"
+    "3. Đọc lướt chương chốt giữa: `chapters/{mid_chap}/content.txt` để kiểm tra tính nhất quán (chống crawler ghép nhầm truyện ở giữa).\n"
+    "4. Đọc chương cán mốc: `chapters/{end_chap}/content.txt` để kiểm tra tính nguyên vẹn và phát hiện dấu hiệu Đại kết cục sớm.\n\n"
+    "HÃY ĐÁNH GIÁ THEO NGUYÊN TẮC 'TƯƠNG THÍCH TIỀN ĐỀ & KHÔNG MÂU THUẪN TRIỆT TIÊU':\n"
+    "- LƯU Ý QUAN TRỌNG: Chương 1-3 chỉ là phần mở đầu/khởi động của câu chuyện. Văn án thường chứa các diễn biến cao trào về sau. "
+    "Bạn KHÔNG ĐƯỢC đòi hỏi Chương 1-3 phải chứa toàn bộ sự kiện trong văn án. Yêu cầu cốt lõi là: Đúng nhân vật chính, đúng tiền đề xuất phát điểm, "
+    "và TUYỆT ĐỐI KHÔNG CÓ MÂU THUẪN TRIỆT TIÊU (ví dụ văn án cổ đại mà truyện hiện đại, văn án nam chính A mà truyện nam chính B không liên quan).\n\n"
+    "🔴 QUY TẮC CẤP PHÉP DỊCH NGHIÊM NGẶT (CHỈ DUYỆT 2 TRƯỜNG HỢP SAU):\n"
+    "1. Case 1 (Happy Case): `info.json` có khai báo thể loại (genre), đồng thời Thể loại + Nhân vật chính + Tiền đề cốt truyện trong `info.json` "
+    "khớp và tương thích logic với nội dung raw Chương 1-3; raw sạch không paywall hay lặp chương -> Đặt `allowed_to_translate: true`, `validation_case: 'HAPPY_CASE'`.\n"
+    "2. Case 2 (Khuyết Genre): `info.json` không có trường thể loại (genre rỗng/null/thiếu), nhưng Nhân vật chính và bối cảnh mở đầu tương thích với văn án; "
+    "raw sạch -> Đặt `allowed_to_translate: true`, `validation_case: 'MISSING_GENRE_AUTO_DETECTED'`, tự động trích xuất `detected_genre` từ raw.\n\n"
+    "🔴 TẤT CẢ CÁC TRƯỜNG HỢP CÒN LẠI BẮT BUỘC ĐẶT `allowed_to_translate: false`:\n"
+    "- Xung đột Thể loại (`GENRE_MISMATCH`): `info.json` ghi một đằng (ví dụ 'Đô thị'), nhưng raw thực tế lại là một nẻo (ví dụ tu chân tiên hiệp cổ đại hoặc ngược lại).\n"
+    "- Lệch Nhân vật / Cào nhầm truyện (`STORY_MISMATCH`): Nhân vật mở đầu hoàn toàn khác lạ, không liên quan đến văn án.\n"
+    "- Lỗi Raw (`RAW_CORRUPT`): Chương 1-3 dính Paywall VIP ('chương chưa mở khóa', 'vui lòng nạp tiền'), thông báo tác giả xin nghỉ, "
+    "file rỗng, hoặc các chương đầu bị cào trùng lặp y hệt nội dung của nhau.\n\n"
+    "QUY ĐỊNH BẮT BUỘC VỀ 'report_brief':\n"
+    "- Viết bằng tiếng Việt, dung lượng vừa phải (từ 2 đến 4 câu).\n"
+    "- Nêu rõ bằng chứng cụ thể: Tên nhân vật chính phát hiện được, thể loại nhận diện, tình trạng raw để Editor có thể FORWARD cho ĐỘI CRAWLER sửa nguồn nếu lỗi.\n\n"
+    "KẾT QUẢ ĐẦU RA:\n"
+    "BẮT BUỘC tạo hoặc ghi đè file `{result_file}` với nội dung DUY NHẤT là một khối JSON hợp lệ theo đúng cấu trúc sau:\n"
+    "```json\n"
+    "{{\n"
+    '  "allowed_to_translate": true,\n'
+    '  "validation_case": "HAPPY_CASE",\n'
+    '  "declared_genre": "Thể loại lấy từ info.json (hoặc Không khai báo)",\n'
+    '  "detected_genre": "Thể loại thực tế suy luận từ raw",\n'
+    '  "suggested_pronouns": "Ví dụ: Hắn - Ta / Anh - Em / Sư tôn - Đồ nhi",\n'
+    '  "is_complete": false,\n'
+    '  "is_short_story": false,\n'
+    '  "report_brief": "Mô tả chi tiết và cụ thể tình trạng truyện theo hướng dẫn ở trên..."\n'
+    "}}\n"
+    "```\n\n"
+    "Sau khi ghi file `{result_filename}`, bạn hãy kết thúc lượt làm việc ngay."
+)
+
+
+def build_new_story_pre_translate_prompt(
+    story_dir: Path,
+    chapters: List[int],
+    story_info: dict,
+    template: str = DEFAULT_NEW_STORY_PRE_TRANSLATE_PROMPT_TEMPLATE
+) -> str:
+    """
+    Tạo chuỗi prompt tiền thẩm định ngữ nghĩa cho truyện mới (New Story Pre-Translate Sanity Check).
+    Tự động tính toán các mốc lấy mẫu: Chương 1, 2, 3, Chốt giữa (N/2), Cán mốc (N).
+    """
+    from new_story_translator_daemon.config import format_chapter_ranges
+    story_id = story_dir.name
+    start_chap = chapters[0]
+    end_chap = chapters[-1]
+    num_chapters = len(chapters)
+
+    # Tính toán danh sách chương lấy mẫu chiến lược (1, 2, 3, mid, end)
+    sample_chaps = []
+    for c in [start_chap, start_chap + 1, start_chap + 2]:
+        if c in chapters and c not in sample_chaps:
+            sample_chaps.append(c)
+
+    mid_chap = chapters[num_chapters // 2]
+    if mid_chap not in sample_chaps:
+        sample_chaps.append(mid_chap)
+
+    if end_chap not in sample_chaps:
+        sample_chaps.append(end_chap)
+
+    sample_chaps.sort()
+    sample_chapters_str = ", ".join(f"Chương {c}" for c in sample_chaps)
+    chapters_range_str = format_chapter_ranges(chapters, arrow="➔")
+    result_file = str((story_dir / "pre_check_result.json").resolve())
+
+    return template.format(
+        story_id=story_id,
+        story_dir=str(story_dir),
+        start_chap=start_chap,
+        end_chap=end_chap,
+        num_chapters=num_chapters,
+        chapters_range=chapters_range_str,
+        sample_chapters_str=sample_chapters_str,
+        mid_chap=mid_chap,
+        result_file=result_file,
+        result_filename="pre_check_result.json"
+    )
+
+

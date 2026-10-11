@@ -145,6 +145,67 @@ class TelegramNotifier:
         )
         self.send_message(msg)
 
+    def notify_pre_check_result(
+        self,
+        story_id: str,
+        chapters_count: int,
+        chaps_range: str,
+        allowed: bool,
+        report_brief: str,
+        validation_case: str = "UNKNOWN",
+        detected_genre: str = "",
+        suggested_pronouns: str = "",
+        is_complete: bool = False,
+        is_short_story: bool = False,
+        isolated_path: Optional[str] = None,
+        source: Optional[str] = None,
+        title: Optional[str] = None,
+        folder_id: Optional[str] = None
+    ):
+        """Thông báo kết quả thẩm định ngữ nghĩa truyện mới trước khi dịch (New Story Pre-Check Sanity Report)."""
+        if not self.is_configured():
+            return
+
+        src_str = f"[{source}] " if source else ""
+        title_line = f"📚 <b>Tên truyện:</b> <i>{html.escape(title)}</i>\n" if title and title != story_id else ""
+        drive_link_line = f"\n📁 <b>Thư mục Drive:</b> <a href=\"https://drive.google.com/drive/folders/{folder_id}\">Mở thư mục bộ truyện ↗</a>" if folder_id else ""
+
+        genre_line = f"🏷️ <b>Thể loại nhận diện:</b> <code>{html.escape(detected_genre)}</code>\n" if detected_genre else ""
+        pronouns_line = f"🗣️ <b>Xưng hô định hình:</b> <code>{html.escape(suggested_pronouns)}</code>\n" if suggested_pronouns else ""
+
+        if allowed:
+            complete_tag = "\n🏆 <b>DẤU HIỆU: ĐÃ ĐẾN ĐẠI KẾT CỤC TOÀN VĂN!</b> 🎉" if is_complete else ""
+            short_tag = "\n📖 <b>ĐOẢN VĂN / TRUYỆN NGẮN:</b> Dự kiến hoàn thành sớm." if is_short_story else ""
+            msg = (
+                f"🔍 <b>[THẨM ĐỊNH TRUYỆN MỚI: ĐẠT YÊU CẦU ✅]</b>\n\n"
+                f"{title_line}"
+                f"📖 <b>Mã truyện:</b> {src_str}<code>{story_id}</code>\n"
+                f"📊 <b>Dải chương khởi tạo:</b> {chapters_count} chương ({chaps_range})\n"
+                f"{genre_line}"
+                f"{pronouns_line}"
+                f"📝 <b>Đánh giá tiền đề:</b>\n"
+                f"<blockquote>{html.escape(report_brief)}</blockquote>"
+                f"{drive_link_line}"
+                f"{complete_tag}{short_tag}\n\n"
+                f"🚀 <i>Dữ liệu hợp lệ! Bắt đầu kích hoạt quy trình dịch mẻ đầu tiên...</i>"
+            )
+        else:
+            isolate_line = f"\n📦 <b>Thư mục cách ly (Debug):</b> <code>{isolated_path}</code>" if isolated_path else ""
+            msg = (
+                f"🚨 <b>[CẢNH BÁO TRUYỆN MỚI: TỪ CHỐI DỊCH ❌]</b>\n\n"
+                f"{title_line}"
+                f"📖 <b>Mã truyện:</b> {src_str}<code>{story_id}</code>\n"
+                f"📊 <b>Dải chương dự kiến:</b> {chapters_count} chương ({chaps_range})\n"
+                f"⚠️ <b>Lý do:</b> <code>{html.escape(validation_case)}</code>\n"
+                f"{genre_line}"
+                f"❌ <b>Báo cáo chi tiết (Editor/Crawler kiểm tra):</b>\n"
+                f"<blockquote>{html.escape(report_brief)}</blockquote>"
+                f"{drive_link_line}"
+                f"{isolate_line}\n\n"
+                f"🛑 <i>Hệ thống tự động từ chối dịch truyện này để chống lãng phí token và chuyển sang truyện tiếp theo.</i>"
+            )
+        self.send_message(msg)
+
     def notify_story_success(
         self,
         story_id: str,

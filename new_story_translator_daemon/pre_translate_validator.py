@@ -1,0 +1,221 @@
+"""
+Module thẩm định ngữ nghĩa dữ liệu truyện mới trước khi dịch (New Story Pre-Translate Sanity Validator):
+Sử dụng AGY CLI để đọc và kiểm tra nhanh:
+1. Đối chiếu info.json (Tên truyện, Tác giả, Thể loại, Văn án) với mở đầu các chương raw (Chương 1-3).
+2. Kiểm tra chất lượng raw mở đầu: phát hiện chương rác, thông báo xin nghỉ của tác giả, paywall VIP.
+3. Kiểm tra tính liên tục và chống lặp nội dung nội bộ dải chương đầu.
+4. Lấy mẫu chốt chặn giữa dải (chống crawler ghép nhầm truyện ở giữa) và chương cuối (kiểm tra nguyên vẹn / hoàn thành sớm).
+5. Áp dụng quy tắc nghiêm ngặt:
+   - Case 1 (Happy Case): Khớp Genre & Nhân vật/Văn án -> allowed_to_translate: true
+   - Case 2 (Khuyết Genre): info.json không có genre, nhưng khớp Nhân vật/Văn án -> allowed_to_translate: true, tự trích xuất detected_genre
+   - Còn lại: Lệch Genre / Lệch Nhân vật / Raw lỗi -> allowed_to_translate: false (Chặn và báo cáo Editor).
+
+Kết quả trả về JSON:
+{
+  "allowed_to_translate": bool,
+  "validation_case": str,
+  "declared_genre": str,
+  "detected_genre": str,
+  "suggested_pronouns": str,
+  "is_complete": bool,
+  "is_short_story": bool,
+  "report_brief": str
+}
+"""
+import os
+import re
+import sys
+import json
+import subprocess
+import threading
+from pathlib import Path
+from datetime import datetime
+from typing import Dict, Any, List, Tuple, Optional
+
+from new_story_translator_daemon.config import (
+    BASE_DIR,
+    AGY_BIN,
+    AGY_MODEL,
+    AGY_EFFORT,
+    LOGS_DIR,
+    format_chapter_ranges
+)
+from new_story_translator_daemon.prompt_templates import (
+    DEFAULT_NEW_STORY_PRE_TRANSLATE_PROMPT_TEMPLATE,
+    build_new_story_pre_translate_prompt
+)
+
+
+class PreTranslateValidator:
+    """Thẩm định ngữ nghĩa dữ liệu truyện mới bằng AGY CLI trước khi cấp phép dịch."""
+
+    def __init__(self, timeout_minutes: int = 5):
+        self.timeout_minutes = timeout_minutes
+        self.timeout_str = f"{timeout_minutes}m"
+
+    def build_prompt(
+        self,
+        story_dir: Path,
+        chapters: List[int],
+        story_info: Dict[str, Any],
+        template: str = DEFAULT_NEW_STORY_PRE_TRANSLATE_PROMPT_TEMPLATE
+    ) -> str:
+        """Xây dựng prompt chỉ dẫn AGY CLI tự mở các file lấy mẫu và thẩm định dữ liệu."""
+        return build_new_story_pre_translate_prompt(
+            story_dir=story_dir,
+            chapters=chapters,
+            story_info=story_info,
+            template=template
+        )
+
+    def validate_story(
+        self,
+        story_dir: Path,
+        chapters: List[int],
+        story_info: Dict[str, Any]
+    ) -> Tuple[bool, Dict[str, Any]]:
+        """
+        Thực thi AGY CLI thẩm định dữ liệu truyện mới trước khi dịch.
+        Trả về: (success: bool, check_data: dict)
+        """
+        story_id = story_dir.name
+        result_file = story_dir / "pre_check_result.json"
+        if result_file.exists():
+            try:
+                result_file.unlink()
+            except Exception:
+                pass
+
+        prompt = self.build_prompt(story_dir, chapters, story_info)
+        log_file = LOGS_DIR / f"pre_check_{story_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+
+        cmd = [
+            AGY_BIN,
+            "-p", prompt,
+            "--output-format", "stream-json",
+            "--add-dir", str(story_dir),
+            "--dangerously-skip-permissions",
+            "--print-timeout", self.timeout_str
+        ]
+        if AGY_MODEL:
+            cmd.extend(["--model", AGY_MODEL])
+        if AGY_EFFORT:
+            cmd.extend(["--effort", AGY_EFFORT])
+
+        print(f"🔍 [{story_id}] Khởi động AGY CLI tiền thẩm định truyện mới (Timeout: {self.timeout_str})...", flush=True)
+
+        try:
+            process = subprocess.Popen(
+                cmd,
+                cwd=str(BASE_DIR),
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                start_new_session=True,
+                text=True,
+                encoding='utf-8',
+                errors='ignore'
+            )
+
+            stdout_lines = []
+            for line in process.stdout:
+                stdout_lines.append(line)
+                line_str = line.strip()
+                if not line_str:
+                    continue
+                try:
+                    ev = json.loads(line_str)
+                    ev_type = ev.get("event")
+                    if ev_type == "step_update":
+                        su = ev.get("step_update", {})
+                        tname = su.get("tool_name", "")
+                        if tname:
+                            print(f"   🔎 [AGY Pre-Check] Đang kiểm tra: {tname}...", flush=True)
+                except Exception:
+                    pass
+
+            timeout_sec = self.timeout_minutes * 60 + 60
+            process.wait(timeout=timeout_sec)
+
+            # Đọc và kiểm tra trực tiếp file pre_check_result.json
+            if result_file.exists():
+                try:
+                    content = result_file.read_text(encoding='utf-8').strip()
+                    # Khử bọc markdown ```json ... ``` nếu có
+                    if content.startswith("```"):
+                        lines = content.splitlines()
+                        if lines and lines[0].startswith("```"):
+                            lines = lines[1:]
+                        if lines and lines[-1].startswith("```"):
+                            lines = lines[:-1]
+                        content = "\n".join(lines).strip()
+
+                    data = json.loads(content)
+                    if isinstance(data, dict) and "allowed_to_translate" in data and "report_brief" in data:
+                        allowed = bool(data["allowed_to_translate"])
+                        val_case = str(data.get("validation_case", "UNKNOWN"))
+                        dec_genre = str(data.get("declared_genre", "Không khai báo"))
+                        det_genre = str(data.get("detected_genre", "Chưa xác định"))
+                        sug_pronouns = str(data.get("suggested_pronouns", ""))
+                        is_comp = bool(data.get("is_complete", False))
+                        is_short = bool(data.get("is_short_story", False))
+                        report = str(data["report_brief"]).strip() or ("Đạt yêu cầu thẩm định dữ liệu truyện mới." if allowed else "Dữ liệu truyện mới không đạt yêu cầu.")
+                        return True, {
+                            "allowed_to_translate": allowed,
+                            "validation_case": val_case,
+                            "declared_genre": dec_genre,
+                            "detected_genre": det_genre,
+                            "suggested_pronouns": sug_pronouns,
+                            "is_complete": is_comp,
+                            "is_short_story": is_short,
+                            "report_brief": report
+                        }
+                    else:
+                        print(f"⚠️ [{story_id}] File pre_check_result.json không đúng cấu trúc dict/keys yêu cầu!", flush=True)
+                except Exception as e:
+                    print(f"⚠️ [{story_id}] Không thể parse JSON từ pre_check_result.json ({e})!", flush=True)
+
+            # Nếu không tồn tại file hoặc không parse được JSON hợp lệ -> Trả về kết quả an toàn mặc định ngay lập tức
+            print(f"❌ [{story_id}] Bước Pre-Translate không trả ra JSON hợp lệ. Kích hoạt kết quả an toàn mặc định (Từ chối dịch)!", flush=True)
+            return False, {
+                "allowed_to_translate": False,
+                "validation_case": "SYSTEM_ERROR",
+                "declared_genre": "Không rõ",
+                "detected_genre": "Không rõ",
+                "suggested_pronouns": "",
+                "is_complete": False,
+                "is_short_story": False,
+                "report_brief": (
+                    f"LỖI HỆ THỐNG: AGY CLI kết thúc với mã {process.returncode} nhưng không tạo ra file pre_check_result.json hợp lệ "
+                    f"theo đúng cấu trúc JSON yêu cầu. Hệ thống tự động từ chối dịch để đảm bảo an toàn."
+                )
+            }
+
+        except subprocess.TimeoutExpired:
+            print(f"⏰ [{story_id}] AGY CLI thẩm định dữ liệu bị timeout sau {self.timeout_minutes} phút!", flush=True)
+            try:
+                process.kill()
+            except Exception:
+                pass
+            return False, {
+                "allowed_to_translate": False,
+                "validation_case": "TIMEOUT",
+                "declared_genre": "Không rõ",
+                "detected_genre": "Không rõ",
+                "suggested_pronouns": "",
+                "is_complete": False,
+                "is_short_story": False,
+                "report_brief": f"LỖI TIMEOUT: Tiến trình thẩm định AGY CLI bị quá thời gian ({self.timeout_minutes} phút)."
+            }
+        except Exception as e:
+            print(f"❌ [{story_id}] Lỗi ngoại lệ khi chạy AGY Pre-check: {e}", flush=True)
+            return False, {
+                "allowed_to_translate": False,
+                "validation_case": "EXCEPTION",
+                "declared_genre": "Không rõ",
+                "detected_genre": "Không rõ",
+                "suggested_pronouns": "",
+                "is_complete": False,
+                "is_short_story": False,
+                "report_brief": f"LỖI NGOẠI LỆ HỆ THỐNG: {e}"
+            }

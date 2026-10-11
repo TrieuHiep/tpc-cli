@@ -101,12 +101,18 @@ def main():
         gdrive_service = GoogleDriveService()
         scanner = DriveNewScanner(gdrive_service)
 
-        # Lấy token xác thực từ gdrive_service để dùng cho RemoteZipInspector
-        creds = gdrive_service.service._http.credentials
-        if not creds.valid:
-            from google.auth.transport.requests import Request
-            creds.refresh(Request())
-        remote_inspector = RemoteZipInspector(auth_token=creds.token)
+        # Khởi tạo RemoteZipInspector với credentials để tự động refresh token
+        creds = getattr(gdrive_service.service._http, 'credentials', None)
+        if creds and not creds.valid:
+            try:
+                from google.auth.transport.requests import Request
+                creds.refresh(Request())
+            except Exception:
+                pass
+        remote_inspector = RemoteZipInspector(
+            auth_token=creds.token if creds else "",
+            credentials=creds
+        )
 
         queue_mgr = ParallelQueueManager(
             queue_size=args.limit_stories,
