@@ -76,7 +76,12 @@ class AGYRunner:
             print(f"📦 [{story_dir.name}] Đang giải nén chapters.zip vào {chapters_dir}...")
             try:
                 with zipfile.ZipFile(chapters_zip, 'r') as zf:
-                    zf.extractall(story_dir)
+                    names = zf.namelist()
+                    has_chapters_prefix = any(
+                        n.replace('\\', '/').lstrip('/').startswith("chapters/")
+                        for n in names if not n.endswith('/')
+                    )
+                    zf.extractall(story_dir if has_chapters_prefix else chapters_dir)
             except Exception as e:
                 print(f"⚠️ Lỗi giải nén chapters.zip: {e}")
 
@@ -86,7 +91,12 @@ class AGYRunner:
             print(f"📦 [{story_dir.name}] Đang giải nén translated_chapters.zip vào {chapters_dir}...")
             try:
                 with zipfile.ZipFile(trans_zip, 'r') as zf:
-                    zf.extractall(story_dir)
+                    names = zf.namelist()
+                    has_chapters_prefix = any(
+                        n.replace('\\', '/').lstrip('/').startswith("chapters/")
+                        for n in names if not n.endswith('/')
+                    )
+                    zf.extractall(story_dir if has_chapters_prefix else chapters_dir)
             except Exception as e:
                 print(f"⚠️ Lỗi giải nén translated_chapters.zip: {e}")
 
