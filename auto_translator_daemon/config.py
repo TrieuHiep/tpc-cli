@@ -31,6 +31,9 @@ LOGS_DIR.mkdir(parents=True, exist_ok=True)
 TEMP_FAILED_DIR = STORAGE_DIR / "temp_failed"
 TEMP_FAILED_DIR.mkdir(parents=True, exist_ok=True)
 
+# File lưu trữ cache kết quả thẩm định mục lục ZIP từ xa (tránh bắn lại Range Request cho truyện không đổi)
+SCAN_CACHE_FILE = STORAGE_DIR / "scan_cache.json"
+
 # Thư mục chứa file xác thực Google Drive
 CONF_DIR = BASE_DIR / "story-translator-cli" / "conf"
 

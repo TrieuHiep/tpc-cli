@@ -75,6 +75,8 @@ def parse_args():
     parser.add_argument("--exclude-story-id", type=str, default=None, help='Chỉ định loại trừ 1 hoặc nhiều story_id (phân cách bằng dấu phẩy: "id_A, id_B").')
     parser.add_argument("--skip-stories-over", type=int, default=None, help="Bỏ qua các bộ truyện có tổng số chương raw vượt quá ngưỡng này (ví dụ: 1000).")
     parser.add_argument("--no-upload", action="store_true", help="Bỏ qua bước upload/đồng bộ lên Google Drive (dùng cho chạy thử nghiệm an toàn).")
+    parser.add_argument("--no-cache", action="store_true", help="Tắt cơ chế đọc/ghi Scan Cache (luôn bắn Range Request trực tiếp lên Google Drive).")
+    parser.add_argument("--refresh-cache", action="store_true", help="Làm mới hoàn toàn Scan Cache (quét lại từ đầu và ghi đè storage/scan_cache.json).")
     return parser.parse_args()
 
 def main():
@@ -124,7 +126,11 @@ def main():
             gdrive_service,
             web_priority_mgr=web_priority_mgr
         )
-        inspector = ChapterInspector(gdrive_service)
+        inspector = ChapterInspector(
+            gdrive_service,
+            use_cache=not args.no_cache,
+            refresh_cache=args.refresh_cache
+        )
         queue_mgr = QueueManager(limit=args.chapters, strategy=args.strategy, max_per_story=max_per_story, skip_stories_over=args.skip_stories_over)
         agy_runner = AGYRunner(timeout_hours=args.timeout)
         qc_validator = QCValidator()
@@ -205,6 +211,11 @@ def main():
             priority_story_ids=priority_story_ids
         )
         all_skipped_stories.extend(drive_skipped)
+
+    # Lưu Scan Cache xuống đĩa và in thống kê
+    inspector.save_cache()
+    if inspector.use_cache:
+        print(f"\n⚡ [ScanCache] Thống kê thẩm định: {inspector.cache_hits} Cache Hits (0ms) | {inspector.cache_misses} Cache Misses (Range Request) | Tổng cache: {len(inspector.scan_cache)} truyện")
 
     # Tổng hợp hàng đợi cuối cùng:
     queue = web_queue + drive_queue

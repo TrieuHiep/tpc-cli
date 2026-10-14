@@ -71,7 +71,7 @@ class DriveScanner:
             response = self.service.files().list(
                 q=query,
                 spaces='drive',
-                fields='nextPageToken, files(id, name, modifiedTime, size, parents)',
+                fields='nextPageToken, files(id, name, modifiedTime, size, md5Checksum, parents)',
                 pageToken=page_token,
                 pageSize=1000,
                 supportsAllDrives=True,
@@ -147,7 +147,7 @@ class DriveScanner:
                 resp = self.service.files().list(
                     q=query,
                     spaces='drive',
-                    fields='files(id, name, modifiedTime, size, parents)',
+                    fields='files(id, name, modifiedTime, size, md5Checksum, parents)',
                     supportsAllDrives=True,
                     includeItemsFromAllDrives=True
                 ).execute()
