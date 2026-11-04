@@ -4,6 +4,7 @@ Sử dụng thư viện chuẩn urllib, không phụ thuộc thư viện ngoài.
 """
 import json
 import html
+import time
 import urllib.request
 import urllib.error
 from typing import List, Dict, Any, Optional
@@ -120,9 +121,10 @@ class TelegramNotifier:
         total_chapters: int,
         limit: int,
         sort_by: str,
-        skipped_stories: Optional[List[Dict[str, Any]]] = None
+        skipped_stories: Optional[List[Dict[str, Any]]] = None,
+        chunk_size: int = 20
     ):
-        """Thông báo khi ca dịch hàng ngày bắt đầu."""
+        """Thông báo khi ca dịch hàng ngày bắt đầu (tự động chia nhỏ danh sách nếu vượt quá chunk_size)."""
         if not self.is_configured():
             return
 
@@ -134,14 +136,31 @@ class TelegramNotifier:
             tag_vip = " ⭐ <b>[ƯU TIÊN WEB]</b>" if item.get('is_web_priority') else ""
             story_lines.append(f"  <b>{idx}.</b> [{item['source']}] <code>{item['story_id']}</code>: {len(chaps)} chaps ({format_chapter_ranges(chaps, arrow='➔')}{total_str}){tag_vip}")
 
-        msg = (
-            f"🚀 <b>[BẮT ĐẦU CA DỊCH TỰ ĐỘNG]</b>\n\n"
-            f"📊 <b>Tổng số chương dự kiến:</b> {total_chapters}/{limit} chaps\n"
-            f"⚙️ <b>Tiêu chí sắp xếp:</b> <code>{sort_by}</code>\n"
-            f"📋 <b>Danh sách hàng đợi ({len(queue)} truyện):</b>\n"
-            + "\n".join(story_lines)
-        )
-        self.send_message(msg)
+        chunks = [
+            story_lines[i:i + chunk_size]
+            for i in range(0, len(story_lines), chunk_size)
+        ] or [[]]
+        total_chunks = len(chunks)
+
+        for part_idx, chunk in enumerate(chunks, 1):
+            part_label = f" - Phần {part_idx}/{total_chunks}" if total_chunks > 1 else ""
+            if part_idx == 1:
+                msg = (
+                    f"🚀 <b>[BẮT ĐẦU CA DỊCH TỰ ĐỘNG]</b>\n\n"
+                    f"📊 <b>Tổng số chương dự kiến:</b> {total_chapters}/{limit} chaps\n"
+                    f"⚙️ <b>Tiêu chí sắp xếp:</b> <code>{sort_by}</code>\n"
+                    f"📋 <b>Danh sách hàng đợi ({len(queue)} truyện{part_label}):</b>\n"
+                    + "\n".join(chunk)
+                )
+            else:
+                msg = (
+                    f"📋 <b>Danh sách hàng đợi ({len(queue)} truyện{part_label}):</b>\n"
+                    + "\n".join(chunk)
+                )
+
+            self.send_message(msg)
+            if part_idx < total_chunks:
+                time.sleep(0.3)
 
     def notify_pre_check_result(
         self,
