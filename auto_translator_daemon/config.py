@@ -97,7 +97,7 @@ MIN_TRANSLATION_RATIO = 0.9
 MIN_TRANSLATION_WORDS = 800
 
 # Cấu hình Model & Reasoning Effort cho AGY CLI
-AGY_MODEL = _env.get("AGY_MODEL", "gemini-3.8-flash-medium")
+AGY_MODEL = _env.get("AGY_MODEL", "gemini-4-carbon-medium")
 AGY_EFFORT = _env.get("AGY_EFFORT", "medium")
 
 # Số lần thử lại tối đa khi AGY hoặc mạng gặp sự cố
