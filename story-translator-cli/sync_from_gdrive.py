@@ -9,7 +9,7 @@ if sys.platform == 'win32':
     sys.stderr.reconfigure(encoding='utf-8')
 
 from googleapiclient.http import MediaIoBaseDownload
-from app.services.gdrive import GoogleDriveService, DRIVE_FOLDERS
+from app.services.gdrive import GoogleDriveService, RAW_DRIVE_FOLDERS, VAULT_DRIVE_FOLDERS, DRIVE_FOLDERS
 from app.utils.logger import logger, console
 from rich.table import Table
 
@@ -28,13 +28,14 @@ import argparse
 from typing import Optional
 
 def sync_gdrive_to_local(storage_dir: Path, repo_type: Optional[str] = None, story_id: Optional[str] = None, raw_only: bool = False):
-    """Scans Google Drive root folders and syncs story datasets down to local storage_dir. Can filter by repo_type, story_id, and raw_only."""
+    """Scans Google Drive root folders (RAW + VAULT tpc-dw) and syncs story datasets down to local storage_dir."""
     storage_dir = storage_dir.resolve()
     target_info = f" [Mã truyện: {story_id}]" if story_id else ""
     raw_info = " [Chế độ: CHỈ KÉO FILE THÔ info.json & chapters.zip]" if raw_only else ""
     logger.info(f"🚀 Bắt đầu đồng bộ dữ liệu từ Google Drive{target_info}{raw_info} về: [bold cyan]{storage_dir}[/bold cyan]...")
 
     ALLOWED_RAW_FILES = {"info.json", "chapters.zip"}
+    ALLOWED_VAULT_FILES = {"translated_chapters.zip", "glossary.json", "summary.txt", "checkpoints.json"}
 
     try:
         gdrive_service = GoogleDriveService()
@@ -46,34 +47,68 @@ def sync_gdrive_to_local(storage_dir: Path, repo_type: Optional[str] = None, sto
     synced_stories = 0
     updated_files_count = 0
 
-    if repo_type and repo_type.lower() in DRIVE_FOLDERS:
-        target_folders = {repo_type.lower(): DRIVE_FOLDERS[repo_type.lower()]}
+    if repo_type and repo_type.lower() in RAW_DRIVE_FOLDERS:
+        target_folders = {repo_type.lower(): RAW_DRIVE_FOLDERS[repo_type.lower()]}
     else:
-        target_folders = DRIVE_FOLDERS
+        target_folders = RAW_DRIVE_FOLDERS
 
     for repo_key, root_folder_id in target_folders.items():
+        vault_root_id = VAULT_DRIVE_FOLDERS.get(repo_key)
         repo_local_dir = storage_dir / repo_key
         repo_local_dir.mkdir(parents=True, exist_ok=True)
         
-        logger.info(f"🔍 Quét thư mục kho trên Drive: [bold gold1]{repo_key}[/bold gold1] (ID: {root_folder_id})...")
+        logger.info(f"🔍 Quét thư mục kho Raw trên Drive: [bold gold1]{repo_key}[/bold gold1] (ID: {root_folder_id})...")
 
         if story_id:
-            query = f"'{root_folder_id}' in parents and name = '{story_id}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false"
+            safe_sid = story_id.strip().replace("'", "\\'")
+            query = f"'{root_folder_id}' in parents and name = '{safe_sid}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false"
         else:
             query = f"'{root_folder_id}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false"
 
-        response = service.files().list(
-            q=query,
-            fields="files(id, name)",
-            supportsAllDrives=True,
-            includeItemsFromAllDrives=True
-        ).execute()
+        drive_stories = []
+        page_token = None
+        while True:
+            response = service.files().list(
+                q=query,
+                fields="nextPageToken, files(id, name)",
+                pageToken=page_token,
+                pageSize=1000,
+                supportsAllDrives=True,
+                includeItemsFromAllDrives=True
+            ).execute()
+            drive_stories.extend(response.get('files', []))
+            page_token = response.get('nextPageToken')
+            if not page_token:
+                break
 
-        drive_stories = response.get('files', [])
+        # Lập bảng băm thư mục bên Kho Dịch tpc-dw nếu cần kéo cả bản dịch/metadata
+        vault_folder_map = {}
+        if not raw_only and vault_root_id:
+            if story_id:
+                safe_sid = story_id.strip().replace("'", "\\'")
+                v_query = f"'{vault_root_id}' in parents and name = '{safe_sid}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false"
+            else:
+                v_query = f"'{vault_root_id}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false"
+            v_token = None
+            while True:
+                v_res = service.files().list(
+                    q=v_query,
+                    fields="nextPageToken, files(id, name)",
+                    pageToken=v_token,
+                    pageSize=1000,
+                    supportsAllDrives=True,
+                    includeItemsFromAllDrives=True
+                ).execute()
+                for vf in v_res.get('files', []):
+                    vault_folder_map[(vf.get('name') or '').strip()] = vf['id']
+                v_token = v_res.get('nextPageToken')
+                if not v_token:
+                    break
+
         logger.info(f"📊 Tìm thấy {len(drive_stories)} bộ truyện phù hợp trên Drive kho [cyan]{repo_key}[/cyan].")
 
         for story in drive_stories:
-            s_name = story['name']
+            s_name = (story['name'] or '').strip()
             story_folder_id = story['id']
             local_story_dir = repo_local_dir / s_name
 
@@ -85,16 +120,28 @@ def sync_gdrive_to_local(storage_dir: Path, repo_type: Optional[str] = None, sto
                 includeItemsFromAllDrives=True
             ).execute()
 
-            drive_files = file_res.get('files', [])
+            candidate_files = [
+                df for df in file_res.get('files', [])
+                if df['name'].lower() in ALLOWED_RAW_FILES
+            ]
+
+            if not raw_only and s_name in vault_folder_map:
+                v_fid = vault_folder_map[s_name]
+                v_fres = service.files().list(
+                    q=f"'{v_fid}' in parents and trashed = false",
+                    fields="files(id, name, modifiedTime, size)",
+                    supportsAllDrives=True,
+                    includeItemsFromAllDrives=True
+                ).execute()
+                for vdf in v_fres.get('files', []):
+                    if vdf['name'].lower() in ALLOWED_VAULT_FILES:
+                        candidate_files.append(vdf)
+
             story_updated = False
 
-            for df in drive_files:
+            for df in candidate_files:
                 file_name = df['name']
                 file_id = df['id']
-                
-                # Nếu bật --raw-only: Bỏ qua tất cả các file khác (ảnh bìa, translated_chapters.zip...)
-                if raw_only and file_name.lower() not in ALLOWED_RAW_FILES:
-                    continue
 
                 drive_mod_time = df.get('modifiedTime')
                 local_file_path = local_story_dir / file_name

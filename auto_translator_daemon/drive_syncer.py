@@ -3,15 +3,25 @@ Module đóng gói lại file translated_chapters.zip và đồng bộ ngược 
 """
 import json
 import zipfile
+import threading
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, Any, List, Optional
 
+from auto_translator_daemon.config import VAULT_DRIVE_FOLDERS
+
 class DriveSyncer:
-    """Đóng gói và đồng bộ kết quả dịch lên Google Drive."""
+    """Đóng gói và đồng bộ kết quả dịch lên Google Drive riêng (tpc-dw)."""
 
     def __init__(self, gdrive_service):
         self.gdrive_service = gdrive_service
+        self._local = threading.local()
+
+    def _set_last_error(self, msg: Optional[str]):
+        self._local.last_error = msg
+
+    def get_last_error(self) -> str:
+        return getattr(self._local, "last_error", "") or ""
 
     def repack_translated_chapters(self, story_dir: Path, expected_total_chapters: Optional[int] = None) -> Optional[Path]:
         """
@@ -86,43 +96,78 @@ class DriveSyncer:
         expected_total_chapters: Optional[int] = None
     ) -> bool:
         """
-        Đồng bộ toàn bộ sản phẩm dịch của bộ truyện lên Google Drive:
-        1. Đóng gói lại translated_chapters.zip.
-        2. Upload ghi đè (update) translated_chapters.zip lên Drive.
+        Đồng bộ toàn bộ sản phẩm dịch của bộ truyện lên Google Drive riêng (tpc-dw):
+        1. Đóng gói lại translated_chapters.zip (kiểm tra khớp tổng chương).
+        2. Upload ghi đè (update) translated_chapters.zip lên thư mục Vault tpc-dw.
         3. Cập nhật và upload metadata: checkpoints.json, glossary.json, summary.txt.
         """
+        self._set_last_error(None)
         story_id = story_dir.name
-        story_folder_id = story_info['story_folder_id']
+        source = story_info.get('source', '')
 
-        print(f"\n☁️ [{story_id}] Bắt đầu đồng bộ dữ liệu lên Google Drive (Folder ID: {story_folder_id})...")
-
-        # 1. Đóng gói zip mới
+        # 1. Đóng gói zip mới ở local
         zip_path = self.repack_translated_chapters(story_dir, expected_total_chapters=expected_total_chapters)
         if not zip_path:
-            print(f"❌ [{story_id}] Không tạo được file translated_chapters.zip để đồng bộ!")
+            err = f"Không tạo được file translated_chapters.zip ở local (hoặc lệch tổng số chương kỳ vọng {expected_total_chapters})"
+            self._set_last_error(err)
+            print(f"❌ [{story_id}] {err}!")
             return False
 
-        # 2. Upload ghi đè translated_chapters.zip
-        print(f"⬆️ [{story_id}] Đang ghi đè translated_chapters.zip lên Drive...")
-        link = self.gdrive_service.upload_or_update_file(zip_path, story_folder_id, "translated_chapters.zip")
+        # 2. Xác định thư mục đích trên Kho Dịch tpc-dw (tuyệt đối không ghi vào raw_folder_id)
+        vault_folder_id = story_info.get('vault_folder_id')
+        if not vault_folder_id:
+            vault_root_id = VAULT_DRIVE_FOLDERS.get(source)
+            if not vault_root_id:
+                err = f"Thiếu vault_folder_id và không xác định được VAULT_DRIVE_FOLDERS cho nguồn '{source}'"
+                self._set_last_error(err)
+                print(f"❌ [{story_id}] {err}!")
+                return False
+            try:
+                vault_folder_id = self.gdrive_service.get_or_create_story_folder(vault_root_id, story_id)
+                story_info['vault_folder_id'] = vault_folder_id
+            except Exception as e:
+                err = self.gdrive_service.get_last_error() or f"Lỗi tìm/tạo thư mục trên tpc-dw: {e}"
+                self._set_last_error(err)
+                print(f"❌ [{story_id}] {err}")
+                return False
+
+        print(f"\n☁️ [{story_id}] Bắt đầu đồng bộ dữ liệu lên Kho Dịch tpc-dw (Vault Folder ID: {vault_folder_id})...")
+
+        # 3. Upload ghi đè translated_chapters.zip
+        print(f"⬆️ [{story_id}] Đang ghi đè translated_chapters.zip lên Google Drive (tpc-dw)...")
+        link = self.gdrive_service.upload_or_update_file(zip_path, vault_folder_id, "translated_chapters.zip")
         if not link:
-            print(f"❌ [{story_id}] Upload translated_chapters.zip thất bại!")
+            err = self.gdrive_service.get_last_error() or "Upload translated_chapters.zip thất bại"
+            self._set_last_error(err)
+            print(f"❌ [{story_id}] Upload translated_chapters.zip thất bại: {err}")
             return False
 
-        # 3. Cập nhật checkpoint
+        # 4. Cập nhật checkpoint
         if translated_chapters:
             last_chap = max(translated_chapters)
             cp_file = self.update_checkpoint(story_dir, last_chap)
-            self.gdrive_service.upload_or_update_file(cp_file, story_folder_id, "checkpoints.json")
+            if not self.gdrive_service.upload_or_update_file(cp_file, vault_folder_id, "checkpoints.json"):
+                err = self.gdrive_service.get_last_error() or "Upload checkpoints.json thất bại"
+                self._set_last_error(f"Đã upload translated_chapters.zip nhưng lỗi checkpoints.json: {err}")
+                print(f"❌ [{story_id}] {self.get_last_error()}")
+                return False
 
-        # 4. Upload glossary.json & summary.txt nếu có
+        # 5. Upload glossary.json & summary.txt nếu có
         glossary_file = story_dir / "glossary.json"
         if glossary_file.exists():
-            self.gdrive_service.upload_or_update_file(glossary_file, story_folder_id, "glossary.json")
+            if not self.gdrive_service.upload_or_update_file(glossary_file, vault_folder_id, "glossary.json"):
+                err = self.gdrive_service.get_last_error() or "Upload glossary.json thất bại"
+                self._set_last_error(f"Đã upload translated_chapters.zip nhưng lỗi glossary.json: {err}")
+                print(f"❌ [{story_id}] {self.get_last_error()}")
+                return False
 
         summary_file = story_dir / "summary.txt"
         if summary_file.exists():
-            self.gdrive_service.upload_or_update_file(summary_file, story_folder_id, "summary.txt")
+            if not self.gdrive_service.upload_or_update_file(summary_file, vault_folder_id, "summary.txt"):
+                err = self.gdrive_service.get_last_error() or "Upload summary.txt thất bại"
+                self._set_last_error(f"Đã upload translated_chapters.zip nhưng lỗi summary.txt: {err}")
+                print(f"❌ [{story_id}] {self.get_last_error()}")
+                return False
 
-        print(f"🎉 [{story_id}] Đồng bộ toàn bộ dữ liệu lên Google Drive THÀNH CÔNG!")
+        print(f"🎉 [{story_id}] Đồng bộ toàn bộ dữ liệu lên Kho Dịch tpc-dw THÀNH CÔNG!")
         return True

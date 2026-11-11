@@ -92,7 +92,7 @@ class QueueManager:
                         'title': title,
                         'badge': badge,
                         'reason': reason,
-                        'folder_id': s_info.get('story_folder_id'),
+                        'folder_id': s_info.get('raw_folder_id') or s_info.get('story_folder_id'),
                         'is_web_priority': False
                     })
                 else:

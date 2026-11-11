@@ -1,5 +1,6 @@
 import os
 import sys
+import time
 import threading
 import mimetypes
 from pathlib import Path
@@ -16,13 +17,24 @@ from app.utils.logger import logger
 
 SCOPES = ['https://www.googleapis.com/auth/drive']
 
-DRIVE_FOLDERS = {
+RAW_DRIVE_FOLDERS = {
     "fanqienovel": "1r7-H989laoUtlYwOhgYNfoPcK9oNemwz",
     "ixdzs8": "1biCwkUl5IT1R0C-CrZsRpgQkFAX-vE3c",
     "biquge": "1AsGs4ORz6pKR2kYLxInOkOsF0jqcvm9J",
     "truyendichwiki": "1c1W2OYlO8s06DVK3PkLPbi8hkdynGLrc",
     "novel543": "1sulNp0yvLx8G04Uod0KAYPemGSNOsEBP"
 }
+
+VAULT_DRIVE_FOLDERS = {
+    "fanqienovel": "1xz0LbGrtzw8bszkjhdTvNeEaQx0dIF25",
+    "ixdzs8": "1OQOR6g2mQx01j4GpSXb4PdGFKFAsZWle",
+    "biquge": "1hCTEVsat8EYSqSitbo6MloO0-XpktXXr",
+    "truyendichwiki": "1uV-TH8m4FtmY7TgIFZJIofa6UITq_ZT1",
+    "novel543": "1XtmQyLBUFpJuKJyU3vfvi4-HwpskYiao"
+}
+
+# Giữ bí danh tương thích ngược cho các module dùng DRIVE_FOLDERS.keys() hoặc kho Raw
+DRIVE_FOLDERS = RAW_DRIVE_FOLDERS
 
 class GoogleDriveService:
     """Service handling Google Drive API interactions (Folder lookup & file upload/overwrite)."""
@@ -35,6 +47,13 @@ class GoogleDriveService:
 
         self.service = self._init_drive_service()
         self._lock = threading.Lock()
+        self._local = threading.local()
+
+    def _set_last_error(self, msg: Optional[str]):
+        self._local.last_error = msg
+
+    def get_last_error(self) -> str:
+        return getattr(self._local, "last_error", "") or ""
 
     def _init_drive_service(self):
         """Initializes Google Drive API service client with fallback mechanism."""
@@ -74,21 +93,36 @@ class GoogleDriveService:
 
         return build('drive', 'v3', credentials=creds)
 
-    def detect_repo_info(self, dataset_dir: Path) -> Tuple[str, str, str]:
+    def _ensure_valid_credentials_locked(self):
+        """Ensures OAuth token is valid before API calls inside self._lock."""
+        try:
+            creds = getattr(self.service._http, 'credentials', None)
+            if creds and not creds.valid and getattr(creds, 'refresh_token', None):
+                creds.refresh(Request())
+                if self.token_path.exists():
+                    try:
+                        self.token_path.write_text(creds.to_json(), encoding='utf-8')
+                    except Exception:
+                        pass
+        except Exception as e:
+            logger.warning(f"Không thể tự động refresh credentials trước khi gọi Drive API: {e}")
+
+    def detect_repo_info(self, dataset_dir: Path, use_vault: bool = False) -> Tuple[str, str, str]:
         """Detects repo key, story ID, and root Drive folder ID from local dataset path.
         
         Example dataset_dir: F:\\Workplace\\outside\\test-tmp\\storage\\truyendichwiki\\W_Ap1lS4CEbyOJSq
-        Parent: truyendichwiki -> Root ID: 1c1W2OYlO8s06DVK3PkLPbi8hkdynGLrc
+        Parent: truyendichwiki -> Root ID (RAW or VAULT depending on use_vault)
         Name: W_Ap1lS4CEbyOJSq -> Story ID: W_Ap1lS4CEbyOJSq
         """
         dataset_dir = dataset_dir.resolve()
         story_id = dataset_dir.name
         parent_name = dataset_dir.parent.name.lower()
 
+        folder_map = VAULT_DRIVE_FOLDERS if use_vault else RAW_DRIVE_FOLDERS
         repo_key = "fanqienovel"
-        root_folder_id = DRIVE_FOLDERS["fanqienovel"]
+        root_folder_id = folder_map["fanqienovel"]
 
-        for key, folder_id in DRIVE_FOLDERS.items():
+        for key, folder_id in folder_map.items():
             if key in parent_name:
                 repo_key = key
                 root_folder_id = folder_id
@@ -98,35 +132,51 @@ class GoogleDriveService:
 
     def get_or_create_story_folder(self, root_folder_id: str, story_id: str) -> str:
         """Finds or creates story_id folder inside root_folder_id on Google Drive."""
-        with self._lock:
-            query = f"'{root_folder_id}' in parents and name = '{story_id}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false"
-            response = self.service.files().list(
-                q=query,
-                fields="files(id, name)",
-                supportsAllDrives=True,
-                includeItemsFromAllDrives=True
-            ).execute()
+        self._set_last_error(None)
+        safe_story_id = story_id.strip().replace("'", "\\'")
+        last_exc = None
 
-            files = response.get('files', [])
-            if files:
-                folder_id = files[0]['id']
-                logger.info(f"✅ Đã tìm thấy thư mục truyện [cyan]{story_id}[/cyan] trên Drive (ID: {folder_id})")
-                return folder_id
-            else:
-                logger.info(f"📁 Thư mục [cyan]{story_id}[/cyan] chưa có trên Drive. Tiến hành tạo mới...")
-                file_metadata = {
-                    'name': story_id,
-                    'mimeType': 'application/vnd.google-apps.folder',
-                    'parents': [root_folder_id]
-                }
-                folder = self.service.files().create(
-                    body=file_metadata,
-                    fields='id',
-                    supportsAllDrives=True
-                ).execute()
-                folder_id = folder.get('id')
-                logger.info(f"✅ Đã tạo thư mục truyện mới [cyan]{story_id}[/cyan] thành công (ID: {folder_id})")
-                return folder_id
+        for attempt in range(1, 4):
+            with self._lock:
+                try:
+                    self._ensure_valid_credentials_locked()
+                    query = f"'{root_folder_id}' in parents and name = '{safe_story_id}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false"
+                    response = self.service.files().list(
+                        q=query,
+                        fields="files(id, name)",
+                        supportsAllDrives=True,
+                        includeItemsFromAllDrives=True
+                    ).execute()
+
+                    files = response.get('files', [])
+                    if files:
+                        folder_id = files[0]['id']
+                        logger.info(f"✅ Đã tìm thấy thư mục truyện [cyan]{story_id}[/cyan] trên Drive (ID: {folder_id})")
+                        return folder_id
+                    else:
+                        logger.info(f"📁 Thư mục [cyan]{story_id}[/cyan] chưa có trên Drive. Tiến hành tạo mới...")
+                        file_metadata = {
+                            'name': story_id.strip(),
+                            'mimeType': 'application/vnd.google-apps.folder',
+                            'parents': [root_folder_id]
+                        }
+                        folder = self.service.files().create(
+                            body=file_metadata,
+                            fields='id',
+                            supportsAllDrives=True
+                        ).execute()
+                        folder_id = folder.get('id')
+                        logger.info(f"✅ Đã tạo thư mục truyện mới [cyan]{story_id}[/cyan] thành công (ID: {folder_id})")
+                        return folder_id
+                except Exception as e:
+                    last_exc = e
+                    logger.warning(f"⚠️ Lỗi tìm/tạo thư mục {story_id} (lần {attempt}/3): {e}")
+            if attempt < 3:
+                time.sleep(2.0 * attempt)
+
+        err_msg = f"Không thể tìm/tạo thư mục Drive cho {story_id}: {last_exc}"
+        self._set_last_error(err_msg)
+        raise RuntimeError(err_msg)
 
     @staticmethod
     def get_mimetype(file_path: Path) -> str:
@@ -145,56 +195,70 @@ class GoogleDriveService:
 
     def upload_or_update_file(self, local_file_path: Path, story_folder_id: str, remote_file_name: str) -> Optional[str]:
         """Uploads new file or overwrites existing file in story_folder_id. Returns webViewLink."""
+        self._set_last_error(None)
         if not local_file_path.exists():
-            logger.error(f"File local không tồn tại: {local_file_path}")
+            err_msg = f"File local không tồn tại: {local_file_path}"
+            self._set_last_error(err_msg)
+            logger.error(err_msg)
             return None
 
-        with self._lock:
-            file_query = f"'{story_folder_id}' in parents and name = '{remote_file_name}' and trashed = false"
-            file_res = self.service.files().list(
-                q=file_query,
-                fields="files(id, name)",
-                supportsAllDrives=True,
-                includeItemsFromAllDrives=True
-            ).execute()
+        safe_remote_name = remote_file_name.replace("'", "\\'")
+        mimetype = self.get_mimetype(local_file_path)
+        last_exc = None
 
-            existing_files = file_res.get('files', [])
-            mimetype = self.get_mimetype(local_file_path)
-            media = MediaFileUpload(str(local_file_path), mimetype=mimetype, resumable=True)
+        for attempt in range(1, 4):
+            with self._lock:
+                media = MediaFileUpload(str(local_file_path), mimetype=mimetype, resumable=True)
+                try:
+                    self._ensure_valid_credentials_locked()
+                    file_query = f"'{story_folder_id}' in parents and name = '{safe_remote_name}' and trashed = false"
+                    file_res = self.service.files().list(
+                        q=file_query,
+                        fields="files(id, name)",
+                        supportsAllDrives=True,
+                        includeItemsFromAllDrives=True
+                    ).execute()
 
-            try:
-                if existing_files:
-                    file_id = existing_files[0]['id']
-                    logger.info(f"🔄 File [cyan]{remote_file_name}[/cyan] đã tồn tại trên Drive. Đang tiến hành ghi đè (update)...")
-                    updated_file = self.service.files().update(
-                        fileId=file_id,
-                        media_body=media,
-                        fields='id, name, webViewLink',
-                        supportsAllDrives=True
-                    ).execute()
-                    link = updated_file.get('webViewLink')
-                    logger.info(f"🎉 Ghi đè [green]{remote_file_name}[/green] lên Google Drive THÀNH CÔNG!")
-                    return link
-                else:
-                    logger.info(f"⬆️ Đang tải [cyan]{remote_file_name}[/cyan] lên Google Drive...")
-                    file_metadata = {
-                        'name': remote_file_name,
-                        'parents': [story_folder_id]
-                    }
-                    uploaded_file = self.service.files().create(
-                        body=file_metadata,
-                        media_body=media,
-                        fields='id, name, webViewLink',
-                        supportsAllDrives=True
-                    ).execute()
-                    link = uploaded_file.get('webViewLink')
-                    logger.info(f"🎉 Tải file [green]{remote_file_name}[/green] lên Google Drive THÀNH CÔNG!")
-                    return link
-            except Exception as e:
-                logger.error(f"❌ Lỗi khi upload/update file lên Google Drive: {e}", exc_info=True)
-                return None
-            finally:
-                del media
+                    existing_files = file_res.get('files', [])
+                    if existing_files:
+                        file_id = existing_files[0]['id']
+                        logger.info(f"🔄 File [cyan]{remote_file_name}[/cyan] đã tồn tại trên Drive. Đang tiến hành ghi đè (update)...")
+                        updated_file = self.service.files().update(
+                            fileId=file_id,
+                            media_body=media,
+                            fields='id, name, webViewLink',
+                            supportsAllDrives=True
+                        ).execute()
+                        link = updated_file.get('webViewLink')
+                        logger.info(f"🎉 Ghi đè [green]{remote_file_name}[/green] lên Google Drive THÀNH CÔNG!")
+                        return link
+                    else:
+                        logger.info(f"⬆️ Đang tải [cyan]{remote_file_name}[/cyan] lên Google Drive...")
+                        file_metadata = {
+                            'name': remote_file_name,
+                            'parents': [story_folder_id]
+                        }
+                        uploaded_file = self.service.files().create(
+                            body=file_metadata,
+                            media_body=media,
+                            fields='id, name, webViewLink',
+                            supportsAllDrives=True
+                        ).execute()
+                        link = uploaded_file.get('webViewLink')
+                        logger.info(f"🎉 Tải file [green]{remote_file_name}[/green] lên Google Drive THÀNH CÔNG!")
+                        return link
+                except Exception as e:
+                    last_exc = e
+                    logger.warning(f"⚠️ Lỗi upload/update {remote_file_name} (lần {attempt}/3): {e}")
+                finally:
+                    del media
+            if attempt < 3:
+                time.sleep(2.0 * attempt)
+
+        err_msg = f"Upload/update {remote_file_name} thất bại sau 3 lần thử: {last_exc}"
+        self._set_last_error(err_msg)
+        logger.error(f"❌ {err_msg}")
+        return None
 
     def upload_story_metadata(self, story_dir: Path, story_folder_id: str) -> Dict[str, Optional[str]]:
         """Uploads/updates core metadata files (summary.txt, glossary.json, checkpoints.json) if present."""

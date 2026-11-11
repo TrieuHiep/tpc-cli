@@ -8,7 +8,7 @@ if sys.platform == 'win32':
     sys.stdout.reconfigure(encoding='utf-8')
     sys.stderr.reconfigure(encoding='utf-8')
 
-from app.services.gdrive import GoogleDriveService, DRIVE_FOLDERS
+from app.services.gdrive import GoogleDriveService, VAULT_DRIVE_FOLDERS as DRIVE_FOLDERS
 from app.utils.logger import logger, console
 from rich.table import Table
 from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn

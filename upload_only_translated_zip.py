@@ -5,11 +5,12 @@ from pathlib import Path
 sys.stdout.reconfigure(encoding='utf-8')
 sys.stderr.reconfigure(encoding='utf-8')
 
-sys.path.insert(0, r'f:\Workplace\outside\test-tmp\story-translator-cli')
+BASE_DIR = Path(__file__).resolve().parent
+sys.path.insert(0, str(BASE_DIR / 'story-translator-cli'))
 from app.services.gdrive import GoogleDriveService
 from googleapiclient.http import MediaFileUpload
 
-STORY_DIR = Path(r'f:\Workplace\outside\test-tmp\storage\novel543\0912620228')
+STORY_DIR = BASE_DIR / 'storage' / 'novel543' / '0912620228'
 FILE_NAME = 'translated_chapters.zip'
 
 def main():
@@ -17,7 +18,7 @@ def main():
     gdrive = GoogleDriveService()
     service = gdrive.service
 
-    repo_key, story_id, root_folder_id = gdrive.detect_repo_info(STORY_DIR)
+    repo_key, story_id, root_folder_id = gdrive.detect_repo_info(STORY_DIR, use_vault=True)
     print(f"📁 Repo: {repo_key}, Story ID: {story_id}, Root Folder ID: {root_folder_id}")
 
     story_folder_id = gdrive.get_or_create_story_folder(root_folder_id, story_id)

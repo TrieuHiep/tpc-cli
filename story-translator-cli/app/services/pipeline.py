@@ -283,9 +283,9 @@ class TranslationPipeline:
         # Tải / Ghi đè file nén và metadata lên Google Drive nếu được yêu cầu
         if upload_gdrive:
             try:
-                logger.info("\n🚀 Bắt đầu quá trình tải/ghi đè bản dịch và metadata lên Google Drive...")
+                logger.info("\n🚀 Bắt đầu quá trình tải/ghi đè bản dịch và metadata lên Google Drive (tpc-dw)...")
                 gdrive_service = GoogleDriveService()
-                repo_key, story_id, root_folder_id = gdrive_service.detect_repo_info(self.loader.dataset_dir)
+                repo_key, story_id, root_folder_id = gdrive_service.detect_repo_info(self.loader.dataset_dir, use_vault=True)
                 story_folder_id = gdrive_service.get_or_create_story_folder(root_folder_id, story_id)
                 
                 # 1. Upload file nén bản dịch nếu có

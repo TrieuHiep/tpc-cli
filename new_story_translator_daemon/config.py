@@ -39,14 +39,26 @@ LOGS_DIR.mkdir(parents=True, exist_ok=True)
 # Thư mục chứa file xác thực Google Drive
 CONF_DIR = BASE_DIR / "story-translator-cli" / "conf"
 
-# ID thư mục gốc của các nguồn trên Google Drive
-DRIVE_FOLDERS = {
+# ID thư mục gốc của các nguồn Raw trên Google Drive (Chỉ đọc chapters.zip & info.json)
+RAW_DRIVE_FOLDERS = {
     "fanqienovel": "1r7-H989laoUtlYwOhgYNfoPcK9oNemwz",
     "ixdzs8": "1biCwkUl5IT1R0C-CrZsRpgQkFAX-vE3c",
     "biquge": "1AsGs4ORz6pKR2kYLxInOkOsF0jqcvm9J",
     "truyendichwiki": "1c1W2OYlO8s06DVK3PkLPbi8hkdynGLrc",
     "novel543": "1sulNp0yvLx8G04Uod0KAYPemGSNOsEBP"
 }
+
+# ID thư mục gốc Kho Dịch riêng tpc-dw trên Google Drive (Đọc/Ghi translated_chapters.zip & metadata)
+VAULT_DRIVE_FOLDERS = {
+    "fanqienovel": "1xz0LbGrtzw8bszkjhdTvNeEaQx0dIF25",
+    "ixdzs8": "1OQOR6g2mQx01j4GpSXb4PdGFKFAsZWle",
+    "biquge": "1hCTEVsat8EYSqSitbo6MloO0-XpktXXr",
+    "truyendichwiki": "1uV-TH8m4FtmY7TgIFZJIofa6UITq_ZT1",
+    "novel543": "1XtmQyLBUFpJuKJyU3vfvi4-HwpskYiao"
+}
+
+# Giữ bí danh tương thích ngược cho CLI choices và các module tham chiếu DRIVE_FOLDERS
+DRIVE_FOLDERS = RAW_DRIVE_FOLDERS
 
 # Thứ tự ưu tiên xử lý nguồn truyện (fanqienovel là ưu tiên số 1)
 SOURCE_PRIORITY = ["fanqienovel", "ixdzs8", "biquge", "truyendichwiki", "novel543"]

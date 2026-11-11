@@ -118,7 +118,7 @@ class ParallelQueueManager:
                     'title': title,
                     'badge': badge,
                     'reason': gap_reason,
-                    'folder_id': s_info.get('story_folder_id')
+                    'folder_id': s_info.get('raw_folder_id') or s_info.get('story_folder_id')
                 })
                 continue
 
@@ -143,7 +143,7 @@ class ParallelQueueManager:
                     'title': title,
                     'badge': badge,
                     'reason': gap_reason,
-                    'folder_id': s_info.get('story_folder_id')
+                    'folder_id': s_info.get('raw_folder_id') or s_info.get('story_folder_id')
                 })
                 continue
 

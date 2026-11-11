@@ -121,7 +121,9 @@ def process_single_new_story(
     story_start = datetime.now()
 
     source = item['source']
-    folder_id = (item.get('story_info') or {}).get('story_folder_id')
+    s_info = item.get('story_info') or {}
+    raw_folder_id = s_info.get('raw_folder_id') or s_info.get('story_folder_id')
+    folder_id = raw_folder_id
     badge = item.get('badge') or (item.get('sheet_meta') or {}).get('badge') or ""
     badge_str = f" {badge}" if badge else ""
     title = (item.get('sheet_meta') or {}).get('title') or story_id
@@ -261,7 +263,7 @@ def process_single_new_story(
 
     print(f"✅ [{story_id}] Toàn bộ {len(chaps)} chương ĐẠT 100% chuẩn QC!")
 
-    # 4. Tạo mới và upload lên Google Drive
+    # 4. Tạo mới và upload lên Google Drive riêng (tpc-dw)
     story_duration_str = str(datetime.now() - story_start).split('.')[0]
     raw_total = item.get('raw_total')
 
@@ -271,18 +273,40 @@ def process_single_new_story(
         sync_status_str = "SKIPPED (--no-upload)"
         notifier.notify_story_success(
             story_id, len(chaps), chaps_range_label, story_duration_str,
-            uploaded=False, total_raw=raw_total, source=source, title=title, folder_id=folder_id
+            uploaded=False, total_raw=raw_total, source=source, title=title, folder_id=raw_folder_id
         )
     else:
         sync_success = syncer.sync_story(item['story_info'], temp_story_dir, chaps)
-        sync_status_str = "SUCCESS ✅" if sync_success else "FAILED ❌"
+        vault_folder_id = item['story_info'].get('vault_folder_id') or raw_folder_id
         if sync_success:
+            sync_status_str = "SUCCESS ✅"
             notifier.notify_story_success(
                 story_id, len(chaps), chaps_range_label, story_duration_str,
-                uploaded=True, total_raw=raw_total, source=source, title=title, folder_id=folder_id
+                uploaded=True, total_raw=raw_total, source=source, title=title, folder_id=vault_folder_id
             )
+        else:
+            sync_status_str = "FAILED ❌"
+            sync_err = syncer.get_last_error() or "Lỗi không xác định khi đóng gói hoặc upload lên Google Drive (tpc-dw)"
+            isolate_failed_story(temp_story_dir, story_id)
+            notifier.notify_story_failed(
+                story_id,
+                len(chaps),
+                f"Lỗi upload bản dịch lên Google Drive (tpc-dw): {sync_err}",
+                isolated_path=f"storage/temp_failed/{story_id}",
+                source=source,
+                title=title,
+                folder_id=vault_folder_id
+            )
+            return {
+                'story_id': story_id,
+                'chapters': len(chaps),
+                'agy_status': 'SUCCESS ✅',
+                'qc_status': 'PASSED ✅',
+                'sync_status': sync_status_str,
+                'duration': story_duration_str
+            }
 
-    # 5. Dọn dẹp thư mục tạm giải phóng ổ cứng
+    # 5. Dọn dẹp thư mục tạm giải phóng ổ cứng (chỉ xóa khi thành công hoặc --no-upload)
     print(f"🧹 [{story_id}] Đang giải phóng bộ nhớ đĩa ({temp_story_dir})...")
     shutil.rmtree(temp_story_dir, ignore_errors=True)
     print(f"✨ [{story_id}] Đã giải phóng hoàn toàn dung lượng ổ cứng!")
