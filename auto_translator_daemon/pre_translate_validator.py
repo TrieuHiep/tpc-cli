@@ -39,7 +39,7 @@ from auto_translator_daemon.prompt_templates import (
 class PreTranslateValidator:
     """Thẩm định ngữ nghĩa dữ liệu truyện bằng AGY CLI trước khi cấp phép dịch."""
 
-    def __init__(self, timeout_minutes: int = 5):
+    def __init__(self, timeout_minutes: int = 10):
         self.timeout_minutes = timeout_minutes
         self.timeout_str = f"{timeout_minutes}m"
 

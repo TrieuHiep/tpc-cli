@@ -165,7 +165,7 @@ def process_single_new_story(
 
     # 1.5. Thẩm định ngữ nghĩa dữ liệu truyện mới bằng AGY CLI trước khi cấp phép dịch (Pre-Translate Sanity Check)
     print(f"\n🕵️ [{story_id}] Đang thẩm định ngữ nghĩa dữ liệu truyện mới (Pre-Translate Sanity Check)...")
-    pre_checker = PreTranslateValidator(timeout_minutes=5)
+    pre_checker = PreTranslateValidator(timeout_minutes=10)
     pre_ok, check_data = pre_checker.validate_story(temp_story_dir, chaps, item['story_info'])
 
     allowed_to_translate = check_data.get('allowed_to_translate', False)

@@ -203,7 +203,7 @@ def process_single_resume_story(
     except Exception:
         pass
 
-    pre_checker = PreTranslateValidator(timeout_minutes=5)
+    pre_checker = PreTranslateValidator(timeout_minutes=10)
     pre_ok, check_data = pre_checker.validate_story(temp_story_dir, chaps, item['story_info'])
 
     allowed_to_translate = check_data.get('allowed_to_translate', False)
